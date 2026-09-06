@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{A2F4B2E7-CC45-4E66-A60A-D9AC801A0B15}</ProjectGuid>
+    <RootNamespace>OSUBANDLoader</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><WholeProgramOptimization>true</WholeProgramOptimization><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup>
+    <ClCompile><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions><AdditionalIncludeDirectories>$(SolutionDir)OSUBAND;$(SolutionDir)OSUBAND\impl\deps;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+    <Link><SubSystem>Windows</SubSystem><AdditionalDependencies>d3d11.lib;dxgi.lib;dwmapi.lib;shell32.lib;ole32.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies><UACExecutionLevel>AsInvoker</UACExecutionLevel></Link>
+  </ItemDefinitionGroup>
+  <PropertyGroup><TargetName>OSUBAND.Loader</TargetName><OutDir>$(SolutionDir)builds\$(Platform)\$(Configuration)\</OutDir><IntDir>$(SolutionDir)builds\intermediate\Loader\$(Platform)\$(Configuration)\</IntDir></PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile><WarningLevel>Level3</WarningLevel><SDLCheck>true</SDLCheck><ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp20</LanguageStandard><AdditionalIncludeDirectories>$(SolutionDir)OSUBAND\impl\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile><WarningLevel>Level3</WarningLevel><SDLCheck>true</SDLCheck><ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp20</LanguageStandard><AdditionalIncludeDirectories>$(SolutionDir)OSUBAND\impl\ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="loader.cxx" />
+    <ClCompile Include="..\OSUBAND\impl\ImGui\imgui.cpp" />
+    <ClCompile Include="..\OSUBAND\impl\ImGui\imgui_draw.cpp" />
+    <ClCompile Include="..\OSUBAND\impl\ImGui\imgui_tables.cpp" />
+    <ClCompile Include="..\OSUBAND\impl\ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="..\OSUBAND\impl\ImGui\imgui_impl_win32.cpp" />
+    <ClCompile Include="..\OSUBAND\impl\ImGui\imgui_impl_dx11.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\OSUBAND\impl\cloud\avatar.hxx" />
+    <ClInclude Include="..\OSUBAND\impl\cloud\runtime_settings.hxx" />
+    <ClInclude Include="..\OSUBAND\impl\util\crash_report.hxx" />
+    <ClInclude Include="..\OSUBAND\impl\ui\preferences.hxx" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

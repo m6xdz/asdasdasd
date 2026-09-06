@@ -1,0 +1,20 @@
+name: Build OSU!BAND Beta
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build Beta x64
+        run: msbuild OSUBAND.sln /m /p:Configuration=Release /p:Platform=x64 /p:DefineConstants=OSUBAND_BETA_BUILD
+      - name: Upload Beta binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: OSUBAND-beta
+          path: |
+            builds/x64/Release/OSUBAND.exe
+            builds/x64/Release/OSUBAND.Loader.exe
