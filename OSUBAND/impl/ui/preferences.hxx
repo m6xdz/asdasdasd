@@ -7,7 +7,7 @@
 #include <cmath>
 
 namespace band_ui {
-struct preferences { bool russian=true; int theme=0; bool animations=true; float motion=1.f; };
+struct preferences { bool russian=true; int theme=0; bool animations=true; float motion=1.f; float menu_scale=1.f; };
 inline preferences prefs;
 inline std::filesystem::path preferences_path(){
 #ifdef _WIN32
@@ -16,10 +16,10 @@ inline std::filesystem::path preferences_path(){
 #endif
  return {};
 }
-inline void load_preferences(){auto path=preferences_path();if(path.empty())return;std::ifstream f(path);int ru=1,theme=0,motion=1;float speed=1;
- if(f>>ru>>theme>>motion>>speed){prefs={ru!=0,std::clamp(theme,0,2),motion!=0,std::isfinite(speed)?std::clamp(speed,0.25f,2.f):1.f};}}
+inline void load_preferences(){auto path=preferences_path();if(path.empty())return;std::ifstream f(path);int ru=1,theme=0,motion=1;float speed=1,scale=1;
+ if(f>>ru>>theme>>motion>>speed){if(!(f>>scale))scale=1; prefs={ru!=0,std::clamp(theme,0,2),motion!=0,std::isfinite(speed)?std::clamp(speed,0.25f,2.f):1.f,std::isfinite(scale)?std::clamp(scale,0.75f,1.35f):1.f};}}
 inline void save_preferences(){auto path=preferences_path();if(path.empty())return;std::error_code ec;std::filesystem::create_directories(path.parent_path(),ec);if(ec)return;
- std::ofstream f(path);f<<prefs.russian<<' '<<prefs.theme<<' '<<prefs.animations<<' '<<prefs.motion;}
+ std::ofstream f(path);f<<prefs.russian<<' '<<prefs.theme<<' '<<prefs.animations<<' '<<prefs.motion<<' '<<prefs.menu_scale;}
 inline const char* tr(const char* s){
  if(!prefs.russian)return s;
  static const std::unordered_map<std::string,const char*> words={
@@ -86,7 +86,10 @@ inline const char* tr(const char* s){
  {"Name","Название"},{"Description","Описание"},{"Style","Стиль"},{"Your settings","Твои настройки"},{"Loading...","Загрузка…"},
  {"No configs yet","Здесь пока нет конфигов"},{"Select a config","Выбери конфиг"},{"Language","Язык"},{"Theme","Тема"},{"Animations","Анимации"},{"Animation speed","Скорость анимаций"},
  {"Rose","Розовая"},{"Ocean","Синяя"},{"Light","Светлая"},{"Gameplay keys","Клавиши игры"},{"Exclude menu from capture","Скрывать меню при захвате"},
- {"Session HUD","Статус поверх игры"},{"Enable Beta","Инструменты Beta"},{"All set.","Всё готово."},{"Find your rhythm.","Можно играть."},
+
+ {"Watermark","Watermark"},{"Menu key","Клавиша меню"},{"Press a key...","Нажми клавишу…"},{"Menu scale","Масштаб меню"},
+ {"OSU!BAND configs","Конфиги OSU!BAND"},{"Player","Игрок"},{"Administrator","Администратор"},{"Stable","Stable"},{"Beta","Beta"},
+  {"Session HUD","Статус поверх игры"},{"Enable Beta","Инструменты Beta"},{"All set.","Всё готово."},{"Find your rhythm.","Можно играть."},
  {"Ready when","Начнём"},{"you are.","с аккаунта."},{"Connect your account","Подключи аккаунт"},{"Confirm this loader in your browser.","Подтверди вход в браузере."},
  {"Connect account","Подключить аккаунт"},{"Connecting...","Подключение…"},{"Open website","Открыть сайт"},{"Launch OSU!BAND","Запустить OSU BAND"},
  {"Preparing your session...","Подготовка…"},{"Open account to activate a key","Активировать ключ на сайте"},{"Close loader after launch","Закрыть лоадер после запуска"},

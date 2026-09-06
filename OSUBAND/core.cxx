@@ -34,6 +34,10 @@ static void enable_process_dpi_awareness( ) {
 
 int WINAPI wWinMain( HINSTANCE instance, HINSTANCE, PWSTR, int ) {
     crash_report::install();
+    HANDLE instance_mutex=CreateMutexW(nullptr,FALSE,L"Local\\OSUBAND.Runtime.SingleInstance");
+    if(!instance_mutex){MessageBoxW(nullptr,L"Could not create the OSU!BAND instance guard.",L"OSU!BAND",MB_ICONERROR|MB_OK);return 2;}
+    struct mutex_scope{HANDLE h{};~mutex_scope(){if(h)CloseHandle(h);}} single_instance{instance_mutex};
+    if(GetLastError()==ERROR_ALREADY_EXISTS){MessageBoxW(nullptr,L"OSU!BAND is already running. Close the existing instance before starting another one.",L"OSU!BAND",MB_ICONINFORMATION|MB_OK);return 2;}
     enable_process_dpi_awareness( );
     struct timer_scope{timer_scope(){timeBeginPeriod(1);}~timer_scope(){timeEndPeriod(1);}} timer;
 

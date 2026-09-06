@@ -209,6 +209,7 @@ namespace ui {
         const bool pause=(GetAsyncKeyState(m_emergency_key)&0x8000)!=0;
         if(pause&&!m_pause_key_down)m_modules_paused=!m_modules_paused;
         m_pause_key_down=pause;
+        if(m_waiting_menu){m_f4_was_down=false;return;}
         const bool menu_down = ( GetAsyncKeyState( m_menu_keybind ) & 0x8000 ) != 0;
         if ( menu_down && !m_f4_was_down )
             m_visible = !m_visible;
@@ -421,11 +422,13 @@ namespace ui {
 
         if(m_lab_enabled&&m_hud_enabled&&m_lab_access){
             auto* hud=ImGui::GetForegroundDrawList();
-            band_ui::card(hud,ImVec2(18,18),ImVec2(330,74));
-            char info[128];std::snprintf(info,sizeof(info),"OSU!BAND   /   %s",m_modules_paused?"PAUSED":snap.game.attached?"CONNECTED":"WAITING");
-            band_ui::text(hud,ImVec2(33,31),info,14,band_ui::rose);
-            std::snprintf(info,sizeof(info),"%zu objects    %d ms    %c / %c",snap.object_count,snap.game.cur_time,m_custom_left_key,m_custom_right_key);
-            band_ui::text(hud,ImVec2(33,61),info,13,band_ui::muted);
+            SYSTEMTIME st{};GetLocalTime(&st);char clock[16]{};std::snprintf(clock,sizeof(clock),"%02u:%02u:%02u",st.wHour,st.wMinute,st.wSecond);
+            const auto line=std::string("OSU!BAND Beta [osuband.dev] / ")+clock+" / "+m_studio.user;
+            const float old_scale=band_ui::ui_scale;band_ui::ui_scale=1.f;
+            const float w=std::clamp(28.f+static_cast<float>(line.size())*7.4f,310.f,760.f);
+            band_ui::card(hud,ImVec2(18,18),ImVec2(w,36),band_ui::panel,10);
+            band_ui::text(hud,ImVec2(31,29),line.c_str(),13,band_ui::rose);
+            band_ui::ui_scale=old_scale;
         }
         ImGui::Render( );
 
@@ -682,23 +685,31 @@ namespace ui {
         {std::lock_guard<std::recursive_mutex> guard(m_settings_mutex);
         m_studio.replay_frames=static_cast<int>(m_replay.frame_count());m_studio.replay_player=m_replay.player_name();}
         if(!m_authorized)m_studio.message="Session unavailable. Reconnect your loader to continue.";
+        m_studio.waiting_menu=m_waiting_menu;
         const auto a=band_ui::draw(m_studio,s);
         if(a.pause)m_modules_paused=!m_modules_paused;
         if(a.close)m_visible=false;
         if(a.changed){apply_settings(s);m_studio.message="Settings applied. F8 pauses every module.";}
+        if(a.bind_menu){m_waiting_menu=true;m_studio.waiting_menu=true;m_studio.message="Press a key for the menu. Esc cancels.";}
+        if(m_waiting_menu&&!a.bind_menu){
+            for(int vk=8;vk<=254;++vk){if((GetAsyncKeyState(vk)&1)==0)continue;
+                if(vk==VK_ESCAPE){m_waiting_menu=false;m_studio.waiting_menu=false;m_studio.message="Menu key unchanged.";break;}
+                if(vk==m_emergency_key){m_studio.message="F8 is reserved for pausing modules.";break;}
+                s.menu_keybind=vk;apply_settings(s);m_waiting_menu=false;m_studio.waiting_menu=false;m_studio.message=std::string("Menu key: ")+band_ui::key_name(vk);break;
+            }
+        }
         if(a.refresh)refresh_profiles();
         if(a.save&&!m_studio.cloud_busy){
             // Replay paths are local-only; never publish someone’s filesystem paths.
             auto portable=s;portable.replay_path_utf8.clear();
             std::ostringstream out;config::serialize_settings(out,m_studio.profile_name,portable);
-            const char* styles[]={"Legit","Rage","Relax Legit","Relax Rage","Relax + Aim","Aim + Assist","Autobot","Tap","Replay"};
+            const char* styles[]={"Legit","Rage","Relax Legit","Relax Rage","Tap","Replay"};
             cloud_task(2,{{"name",m_studio.profile_name},{"description",m_studio.description},{"style",styles[m_studio.style]},
-                          {"cfg",out.str()},{"submit",m_studio.submit}});
+                          {"cfg",out.str()},{"submit",m_studio.submit},{"channel","lab"}});
         }
         if(a.load&&!m_studio.cloud_busy&&m_studio.selected>=0&&m_studio.selected<static_cast<int>(m_studio.profiles.size())){
             const auto& p=m_studio.profiles[m_studio.selected];cloud_task(3,{{"id",p.id},{"revision",p.revision}});
         }
-        if(a.undo&&m_undo_config){m_pending_config=m_undo_config;m_pending_name="Undo";m_studio.message="Config queued until the map ends.";}
         if(a.browse_replay){wchar_t file[32768]{};OPENFILENAMEW ofn{};ofn.lStructSize=sizeof(ofn);ofn.hwndOwner=m_hwnd;
             ofn.lpstrFilter=L"osu! replay (*.osr)\0*.osr\0\0";ofn.lpstrFile=file;ofn.nMaxFile=32768;
             ofn.Flags=OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR;
@@ -707,6 +718,5 @@ namespace ui {
             if(s.replay_path_utf8==m_replay_path_utf8){std::lock_guard<std::recursive_mutex> guard(m_settings_mutex);m_replay.load_replay();}
             else apply_settings(s);
             m_studio.message=m_replay.replay_valid()?"Replay loaded. Choose playback mode and enable the module.":m_replay.last_load_error();}
-        if(a.website){try{auto c=cloud::client::restore();auto url=cloud::wide(c.origin+"/beta");ShellExecuteW(m_hwnd,L"open",url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}catch(...){m_studio.message="Open your account from the loader.";}}
     }
 }

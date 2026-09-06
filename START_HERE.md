@@ -1,33 +1,26 @@
-# OSU!BAND — запуск
+# OSU!BAND — сборка и первый запуск
 
-## Что нужно
+## Нужно
 
 - Windows 10/11 x64.
-- Visual Studio 2022 с компонентом «Разработка классических приложений на C++».
+- Visual Studio 2022: Desktop development with C++.
 - MSVC v143 и Windows 10/11 SDK.
-- Запущенный osu!lazer 2026.804.2.
+- osu!lazer соответствующей поддерживаемой версии.
 
 ## Сборка
 
-1. Распакуйте архив.
-2. Откройте `OSUBAND.sln`.
-3. Выберите `Release` и `x64`.
-4. Нажмите Build → Build Solution.
-5. Готовые файлы появятся в `builds/x64/Release/`:
-   - `OSUBAND.Loader.exe`
-   - `OSUBAND.exe`
+1. Открой `OSUBAND.sln`.
+2. Выбери `Release` + `x64`.
+3. Build → Build Solution.
+4. Результат: `builds/x64/Release/OSUBAND.Loader.exe` и `OSUBAND.exe`.
 
-## Первый запуск Beta
+## Первый запуск
 
-1. Запустите `OSUBAND.Loader.exe`.
-2. Нажмите Connect account. Адрес сайта уже встроен в Beta-лоадер.
-3. Откройте ссылку из loader, войдите через Discord и подтвердите короткий код.
-4. Вернитесь в loader и нажмите Refresh.
-5. Запустите osu!lazer и нажмите Launch OSU BAND.
-6. В osu!lazer нажмите F4 — откроется меню OSU!BAND.
+1. Запусти `OSUBAND.Loader.exe`.
+2. Нажми Connect account и подтверди код в браузере через Discord-вход.
+3. Вернись в лоадер и обнови состояние аккаунта.
+4. Выбери Stable или Beta, если Beta доступна подписке/аккаунту.
+5. `Open osu!lazer` и `Launch OSU BAND` находятся рядом на экране Session.
+6. По умолчанию меню открывается F4. Клавиша меняется в Settings → Menu key.
 
-## Важное ограничение текущей версии
-
-Beta-лоадер скачивает только опубликованный релиз канала `lab` и проверяет SHA-256, размер и Windows x64 PE-заголовок. В админке сайта опубликуй Beta-сборку с каналом `lab`; Stable этим архивом не изменяется.
-
-Сайт сейчас закрыт для владельца и использует ChatGPT-вход. Для внешних пользователей позже нужно подключить Discord OAuth и открыть доступ сайта.
+Runtime не позволяет запустить второй экземпляр OSU!BAND одновременно.

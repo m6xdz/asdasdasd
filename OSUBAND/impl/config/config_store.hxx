@@ -428,7 +428,8 @@ namespace config {
     struct profile_meta_t {
         std::string name, author="OSU!BAND", recipient="Everyone", description, channel="stable";
         int revision=1;
-        std::string id,owner_id,avatar_url,style="Legit",status="private",review_note;
+        std::string id,owner_id,avatar_url,style="Legit",status="private",review_note,author_role="user";
+        int64_t updated_at=0;
         bool official=false;
     };
 

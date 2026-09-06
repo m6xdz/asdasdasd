@@ -1,54 +1,44 @@
-# OSU!BAND port notes
+# OSU!BAND — изменения 2026-09-07
 
-## 1.1.0 performance and profile pass
+## Клиент и меню
 
-- Replaced the playing-state zero-duration reader loop with a small cadence and lowered the reader thread from time-critical to above-normal priority.
-- Stopped submitting empty overlay frames while hidden, paced visible frames with the compositor, and throttled repeated window-geometry/display-affinity calls.
-- Added cloud profile styles: Legit, Rage, Relax Legit, Relax Rage, Relax + Aim, Aim + Assist, Autobot, Tap and Replay. Profiles are selected on the website and applied between maps; no `.cfg` file is downloaded.
-- Renamed the user-facing Lab channel to Beta; the internal `lab` value remains unchanged for server/release compatibility.
-- Beta loader shows Session and Settings only. The site address and connection internals are fixed for regular users.
+- Конфиги сведены в один список; отдельные вкладки OSU!BAND / players убраны.
+- На карточке конфига отображаются Stable/Beta, автор, роль и дата.
+- Beta-раздел упрощён: оставлен Watermark и информация о доступе/канале.
+- Убраны из игрового меню Cloud sync, Open website и Undo last config.
+- Watermark Beta: `OSU!BAND Beta [osuband.dev] / время / пользователь`.
+- Клавиша открытия меню переназначается в Settings; F8 остаётся резервной.
+- Масштаб меню сохраняется и регулируется от 75% до 135%; на маленьком экране
+  размер автоматически ограничивается, чтобы не ломать раскладку.
+- Светлая тема сделана менее яркой.
+- Добавлена single-instance защита через Win32 mutex, чтобы два экземпляра
+  OSUBAND.exe не могли одновременно менять один и тот же интерфейс/состояние.
 
-## Stability and diagnostics
+## Лоадер
 
-- Relax uses a bounded look-ahead queue, deterministic release ownership, and releases held keys on map/foreground changes.
-- Background workers are guarded; a stopped worker is reported and a small `last-crash.txt` is left under `%LOCALAPPDATA%\\OSUBAND\\Beta`.
-- The UI copies only lightweight status data, not the full beatmap, for its frame.
+- `Open osu!lazer` находится рядом с `Launch OSU BAND` на странице Session.
+- Светлая тема использует ту же более спокойную палитру.
 
-## Runtime
+## Сайт и облако
 
-The known-working osu!lazer reader from the 2026.804.2 clean runtime port is retained. Gameplay module source files were not edited.
+Сайт находится в соседней папке `osuband-control` и теперь использует единый
+кабинет `/dashboard`:
 
-## Lazer-only cleanup
+- RU/EN переключатель;
+- единая вкладка `Конфиг`;
+- общий чат только для активных подписчиков;
+- публичные карточки пользователей;
+- список пользователей в админке;
+- бан/разбан и поиск по Discord ID;
+- скачивание pending `.cfg` администратором для проверки;
+- исправленная активация ключа;
+- metadata канала Stable/Beta, роли автора и даты загрузки.
 
-Removed:
-- `core/game/osu_stable.hxx`
-- `impl/defs/offsets_stable.hxx`
-- stable attach branch from `client_factory.hxx`
-- stable parser ownership from the cache
-- stable-only songs path override UI
+Для существующей базы нужна новая миграция
+`osuband-control/migrations/0007_community_config_metadata.sql`.
 
-The generic `.osu` text parser used by lazer's file-store loader was renamed from `stable_parser.hxx` to `osu_file_parser.hxx`; its parsing logic was preserved.
+## Проверка
 
-## Interface
-
-The new menu is inspired by the information architecture of modern sidebar cheat UIs, but uses an original OSU!BAND visual language:
-- midnight/navy glass panels
-- cyan + osu-inspired pink dual accents
-- animated top accent rail
-- animated waveform details
-- grouped GAMEPLAY / UTILITY navigation
-- animated vector OSU!BAND pulse logo
-- live LAZER READY state pill
-- safe profile slot in the lower-left
-
-Existing control values and module wiring remain unchanged.
-
-## Loader
-
-The optional loader:
-- detects `osu!.exe`
-- can start the default `%LOCALAPPDATA%\\osulazer\\current\\osu!.exe`
-- starts `OSUBAND.exe` from the loader directory
-- uses Discord account avatar and remotely controlled Beta appearance settings
-- keeps cloud configs on the website and client; the loader does not expose a config library
-- performs no DLL injection
+Подробный список выполненных проверок находится в `VERIFICATION.txt`.
+Финальную Windows Release x64 сборку необходимо выполнить на машине с
+Visual Studio 2022 / MSVC v143 / Windows SDK.

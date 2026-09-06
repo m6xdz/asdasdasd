@@ -32,7 +32,8 @@ void c_overlay::cloud_tick() {
                 config::profile_meta_t p;p.id=c.at("id");p.owner_id=c.at("owner_id");p.name=c.at("name");
                 p.author=c.value("author","");p.avatar_url=c.value("avatar","");p.description=c.value("description","");
                 p.style=c.value("style","Legit");p.status=c.value("status","private");p.review_note=c.value("review_note","");
-                p.official=c.value("official",0)!=0;p.revision=c.at("revision");p.channel="lab";
+                p.author_role=c.value("author_role","user");p.updated_at=c.value("updated_at",int64_t(0));
+                p.official=c.value("official",0)!=0;p.revision=c.at("revision");p.channel=c.value("channel","stable");
                 if(p.id==selected)m_studio.selected=static_cast<int>(m_studio.profiles.size());
                 m_studio.profiles.push_back(std::move(p));
             }

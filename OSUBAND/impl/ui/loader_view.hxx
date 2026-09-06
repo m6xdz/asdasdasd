@@ -50,7 +50,8 @@ inline actions draw(model& m){using namespace band_ui;actions a;apply_theme();au
    if(button("##lab","Beta",P(643,283),P(223,38),m.lab_channel,!m.busy&&m.lab_access)){m.lab_channel=true;a.channel=true;}
    text(d,P(407,343),m.osu_running?"osu!lazer is running":"Open osu!lazer before starting",14,m.osu_running?ink:muted);
    if(m.busy){ImGui::SetCursorScreenPos(P(406,378));ImGui::ProgressBar(m.progress,P(461,7),"");text(d,P(406,397),m.status.substr(0,59).c_str(),12,muted);}
-   if(button("##launch",m.busy?"Preparing your session...":m.authorized?remote.launchLabel.c_str():"Open account to activate a key",P(406,444),P(461,39),true,!m.busy)) {if(m.authorized)a.launch=true;else a.open_site=true;}
+   if(button("##launch",m.busy?"Preparing your session...":m.authorized?remote.launchLabel.c_str():"Open account to activate a key",P(406,444),P(286,39),true,!m.busy)) {if(m.authorized)a.launch=true;else a.open_site=true;}
+   if(button("##open-osu-session","Open osu!lazer",P(704,444),P(162,39),false,!m.busy))a.open_osu=true;
    ImGui::SetCursorScreenPos(P(31,518));ImGui::Checkbox(tr("Close loader after launch"),&m.close_after);
   }
  }else{
@@ -60,7 +61,6 @@ inline actions draw(model& m){using namespace band_ui;actions a;apply_theme();au
   d->PushClipRect(P(524,302),P(866,330),true);text(d,P(524,306),m.user.c_str(),17);d->PopClipRect();
   if(m.connected&&button("##refresh-account","Refresh",P(524,359),P(344,38),false,!m.busy))a.refresh=true;
   if(m.connected&&button("##logout","Disconnect this loader",P(524,415),P(344,38),false,!m.busy))a.logout=true;
-  if(button("##osu","Open osu!lazer",P(524,471),P(344,38),false,!m.busy))a.open_osu=true;
  }
  d->AddLine(P(29,554),P(891,554),border);ImGui::SetCursorScreenPos(P(30,565));ImGui::PushTextWrapPos(891);ImGui::TextColored(ImVec4(.74f,.61f,.68f,1),"%s",tr((m.message.empty()?m.status:m.message).c_str()));ImGui::PopTextWrapPos();ImGui::End();return a;
 }
