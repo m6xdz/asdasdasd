@@ -121,7 +121,10 @@ namespace config {
 
     inline std::filesystem::path profile_path( const std::string& name ) {
         const auto safe=sanitize_name(name);
-        return safe.empty() ? std::filesystem::path{} : configs_dir() / std::filesystem::u8path(safe+".cfg");
+        if (safe.empty()) return {};
+        // char8_t tells filesystem::path to decode UTF-8, including on Windows.
+        const std::u8string filename(safe.begin(), safe.end());
+        return configs_dir() / std::filesystem::path(filename + u8".cfg");
     }
 
     inline void write_line( std::ostream& out, const char* key, bool v ) {
