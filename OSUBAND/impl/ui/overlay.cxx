@@ -118,8 +118,11 @@ namespace ui {
         m_mouse_hook.set_transform( overlay_aim_hook_transform, this );
         m_mouse_hook.install( );
 
+        // Tap Assist is the only feature that needs a global keyboard hook.
+        // Keep it fully detached while Relax is active: a permanently installed
+        // low-level hook can delay synthetic Relax edges on some Windows builds.
         m_keyboard_hook.set_callback( overlay_keyboard_hook_callback, this );
-        m_keyboard_hook.install( );
+        m_tap_hook_enabled.store(false, std::memory_order_release);
 
         band_ui::load_preferences();
         refresh_profiles();
@@ -133,6 +136,7 @@ namespace ui {
         m_avatars.clear();
         m_aim.stop( );
         m_mouse_hook.uninstall( );
+        m_tap_hook_enabled.store(false, std::memory_order_release);
         m_keyboard_hook.uninstall( );
 
         ImGui_ImplDX11_Shutdown( );
@@ -419,17 +423,18 @@ namespace ui {
         s.aim_legit_mode = m_aim.legit_mode;
         s.aim_legit_clamp = m_aim.legit_clamp;
 
-        s.relax_enabled = m_relax.enabled;
-        s.relax_ur = m_relax.ur;
-        s.relax_tap_style = m_relax.tap_style;
-        s.relax_singletap_bpm_cap = m_relax.singletap_bpm_cap;
-        s.relax_k1_hold_center = m_relax.k1_hold_center;
-        s.relax_k1_hold_spread = m_relax.k1_hold_spread;
-        s.relax_k2_hold_center = m_relax.k2_hold_center;
-        s.relax_k2_hold_spread = m_relax.k2_hold_spread;
-        s.relax_hold_floor = m_relax.hold_floor;
-        s.relax_hold_ceiling = m_relax.hold_ceiling;
-        s.relax_manual_offset_ms = m_relax.manual_offset_ms;
+        const auto rs = m_relax.snapshot_settings();
+        s.relax_enabled = rs.enabled;
+        s.relax_ur = rs.ur;
+        s.relax_tap_style = rs.tap_style;
+        s.relax_singletap_bpm_cap = rs.singletap_bpm_cap;
+        s.relax_k1_hold_center = rs.k1_hold_center;
+        s.relax_k1_hold_spread = rs.k1_hold_spread;
+        s.relax_k2_hold_center = rs.k2_hold_center;
+        s.relax_k2_hold_spread = rs.k2_hold_spread;
+        s.relax_hold_floor = rs.hold_floor;
+        s.relax_hold_ceiling = rs.hold_ceiling;
+        s.relax_manual_offset_ms = rs.manual_offset_ms;
 
         s.replay_enabled = m_replay.enabled;
         s.replay_path_utf8 = m_replay_path_utf8;
@@ -458,11 +463,22 @@ namespace ui {
         return s;
     }
 
+    void c_overlay::update_keyboard_hook_state(bool enabled) {
+        m_tap_hook_enabled.store(enabled, std::memory_order_release);
+        if(enabled) {
+            if(!m_keyboard_hook.installed()) m_keyboard_hook.install();
+        } else {
+            if(m_keyboard_hook.installed()) m_keyboard_hook.uninstall();
+        }
+    }
+
     void c_overlay::apply_settings( const config::settings_t& input_settings ) {
         std::lock_guard<std::recursive_mutex> guard(m_settings_mutex);
         auto s=input_settings;config::validate(s);
         if(!m_lab_access){s.lab_enabled=false;s.hud_enabled=false;}
-        reset_modules(m_last_game);
+        osu::game_snapshot_t last_game;
+        { std::lock_guard<std::mutex> game_guard(m_game_snapshot_mutex); last_game=m_last_game; }
+        reset_modules(last_game);
         m_aim.enabled = s.aim_enabled;
         m_aim.ignore_sliders = s.aim_ignore_sliders;
         m_aim.tablet_mode = s.aim_tablet_mode;
@@ -476,17 +492,9 @@ namespace ui {
         m_aim.legit_mode = s.aim_legit_mode;
         m_aim.legit_clamp = s.aim_legit_clamp;
 
-        m_relax.enabled = s.relax_enabled;
-        m_relax.ur = s.relax_ur;
-        m_relax.tap_style = s.relax_tap_style;
-        m_relax.singletap_bpm_cap = s.relax_singletap_bpm_cap;
-        m_relax.k1_hold_center = s.relax_k1_hold_center;
-        m_relax.k1_hold_spread = s.relax_k1_hold_spread;
-        m_relax.k2_hold_center = s.relax_k2_hold_center;
-        m_relax.k2_hold_spread = s.relax_k2_hold_spread;
-        m_relax.hold_floor = s.relax_hold_floor;
-        m_relax.hold_ceiling = s.relax_hold_ceiling;
-        m_relax.manual_offset_ms = s.relax_manual_offset_ms;
+        m_relax.configure({s.relax_enabled,s.relax_ur,s.relax_tap_style,s.relax_singletap_bpm_cap,
+                           s.relax_k1_hold_center,s.relax_k1_hold_spread,s.relax_k2_hold_center,s.relax_k2_hold_spread,
+                           s.relax_hold_floor,s.relax_hold_ceiling,s.relax_manual_offset_ms});
 
         m_replay.enabled = s.replay_enabled;
         if (s.replay_path_utf8 != m_replay_path_utf8) {
@@ -514,6 +522,10 @@ namespace ui {
         m_tap_assist.assist_window = s.tap_assist_window;
         m_tap_assist.randomization = s.tap_randomization;
         m_tap_assist.ignore_sliders = s.tap_ignore_sliders;
+        // Relax and Tap Assist are mutually exclusive. Do not leave the global
+        // keyboard hook installed in a Relax session. This mirrors Stable's
+        // clean input path and avoids occasionally delayed/dropped key edges.
+        update_keyboard_hook_state(s.tap_enabled && !s.relax_enabled);
 
         m_custom_left_key = s.custom_left_key;
         m_custom_right_key = s.custom_right_key;
@@ -523,6 +535,7 @@ namespace ui {
     }
 
     void c_overlay::reset_modules( const osu::game_snapshot_t& game ) {
+        std::lock_guard<std::recursive_mutex> guard(m_settings_mutex);
         m_game_time_stall_start_ms = 0;
         m_aim.set_user_input_blocked( false );
         m_aim.on_leave_play( );
@@ -535,8 +548,7 @@ namespace ui {
     }
 
     void c_overlay::tick_modules( const osu::game_snapshot_t& game, const osu::beatmap_data_t& beatmap ) {
-        std::lock_guard<std::recursive_mutex> guard(m_settings_mutex);
-        m_last_game=game;
+        { std::lock_guard<std::mutex> game_guard(m_game_snapshot_mutex); m_last_game=game; }
         if(GetTickCount64()>=m_auth_deadline.load())m_authorized=false;
         if(m_modules_paused||!m_authorized){reset_modules(game);m_aim.set_user_input_blocked(true);return;}
         const bool in_play = game.cur_state == osu::game_state_t::play;
@@ -600,15 +612,22 @@ namespace ui {
             const bool map_paused = m_game_time_stall_start_ms != 0
                                     && ( now_ms - m_game_time_stall_start_ms ) >= k_pause_stall_ms;
 
-            m_aim.set_user_input_blocked( map_paused );
+            // Relax has its own mutex and timing state. Run it before any UI/module
+            // lock so rendering, cloud-config work or Tap Assist cannot starve key edges.
+            if(map_paused) m_relax.on_leave_play(mod_game);
+            else m_relax.update(mod_game,beatmap);
 
-            if(map_paused){
-                m_relax.on_leave_play(mod_game);m_tap_assist.on_leave_play(mod_game);
-            }else{
-                m_aim.update(mod_game,beatmap);m_relax.update(mod_game,beatmap);m_tap_assist.update(mod_game,beatmap);
+            // Beta-only modules may share UI state. Never make Relax wait for that
+            // lock; if the menu is applying settings, secondary modules simply skip
+            // this ~1 ms tick and catch up on the next one.
+            std::unique_lock<std::recursive_mutex> module_guard(m_settings_mutex,std::try_to_lock);
+            if(module_guard.owns_lock()) {
+                m_aim.set_user_input_blocked( map_paused );
+                if(map_paused) m_tap_assist.on_leave_play(mod_game);
+                else { m_aim.update(mod_game,beatmap); m_tap_assist.update(mod_game,beatmap); }
+                m_replay.update( mod_game, beatmap, map_paused );
+                m_autobot.update( mod_game, beatmap, map_paused );
             }
-            m_replay.update( mod_game, beatmap, map_paused );
-            m_autobot.update( mod_game, beatmap, map_paused );
 
         }
         else {

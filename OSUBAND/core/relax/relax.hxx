@@ -20,6 +20,12 @@ namespace relax {
 
     class c_relax {
     public:
+        struct runtime_settings_t {
+            bool enabled=false; float ur=65.f; int tap_style=0; int singletap_bpm_cap=100;
+            float k1_hold_center=48.f,k1_hold_spread=12.f,k2_hold_center=48.f,k2_hold_spread=12.f;
+            float hold_floor=15.f,hold_ceiling=115.f; int32_t manual_offset_ms=0;
+        };
+
         bool enabled = false;
         float ur = 65.f;
         int tap_style = static_cast<int>( tap_style_t::alternate );
@@ -31,6 +37,20 @@ namespace relax {
         float hold_floor = 15.f;
         float hold_ceiling = 115.f;
         int32_t manual_offset_ms = 0;
+
+        runtime_settings_t snapshot_settings() const {
+            std::lock_guard lock(m_mtx);
+            return {enabled,ur,tap_style,singletap_bpm_cap,k1_hold_center,k1_hold_spread,
+                    k2_hold_center,k2_hold_spread,hold_floor,hold_ceiling,manual_offset_ms};
+        }
+
+        void configure(const runtime_settings_t& s) {
+            std::lock_guard lock(m_mtx);
+            enabled=s.enabled; ur=s.ur; tap_style=s.tap_style; singletap_bpm_cap=s.singletap_bpm_cap;
+            k1_hold_center=s.k1_hold_center; k1_hold_spread=s.k1_hold_spread;
+            k2_hold_center=s.k2_hold_center; k2_hold_spread=s.k2_hold_spread;
+            hold_floor=s.hold_floor; hold_ceiling=s.hold_ceiling; manual_offset_ms=s.manual_offset_ms;
+        }
 
         [[nodiscard]] size_t queue_size() const { std::lock_guard lock(m_mtx); return m_click_queue.size(); }
         [[nodiscard]] bool is_synced() const { return true; }
@@ -158,15 +178,22 @@ namespace relax {
 
         bool inject_key(WORD vk, bool down) {
             if (!vk) return false;
-            if (m_nt.available()) return down ? m_nt.press(vk) : m_nt.release(vk);
 
-            // Keep the fallback observable: if Windows rejects the event, do not mark
-            // the key as held. This prevents unmatched releases after focus/input stalls.
+            // Prefer the observable SendInput/win32u path. It returns the number of
+            // accepted events, so a failed edge can be retried instead of silently
+            // being treated as a successful press. Beta previously preferred
+            // NtUserInjectKeyboardInput, whose exported wrapper has no useful status
+            // result and could therefore turn a rejected edge into a missed note.
             INPUT in{};
             in.type = INPUT_KEYBOARD;
             in.ki.wVk = vk;
             if (!down) in.ki.dwFlags = KEYEVENTF_KEYUP;
-            return input::send_inputs(1, &in, sizeof(INPUT)) == 1;
+            if (input::send_inputs(1, &in, sizeof(INPUT)) == 1) return true;
+
+            // Last-resort compatibility path for systems where the normal backend is
+            // unavailable. Do not use it first because it cannot report acceptance.
+            if (m_nt.available()) return down ? m_nt.press(vk) : m_nt.release(vk);
+            return false;
         }
 
         void release_all_keys(const osu::game_snapshot_t&) {
@@ -237,7 +264,10 @@ namespace relax {
         void purge_stale(int game_time) {
             m_click_queue.erase(std::remove_if(m_click_queue.begin(), m_click_queue.end(),
                 [game_time](const scheduled_click_t& c) {
-                    return c.released || (!c.pressed && c.press_time < game_time - 75);
+                    // A short render/cloud hitch must not delete a note before the
+                    // input backend gets a chance to retry it. 180 ms is still bounded
+                    // and the >300 ms timeline resync path handles real stalls.
+                    return c.released || (!c.pressed && c.press_time < game_time - 180);
                 }), m_click_queue.end());
         }
 

@@ -270,7 +270,9 @@ namespace threads {
                 // Keep a small cadence while playing and relax it outside a map.
                 // This removes a large amount of unnecessary CPU contention.
                 if ( in_play )
-                    std::this_thread::sleep_for( 2ms );
+                    // Relax is timing-sensitive. A 1 ms cadence keeps Beta aligned
+                    // with Stable without returning to the old full busy-loop.
+                    std::this_thread::sleep_for( 1ms );
                 else
                     std::this_thread::sleep_for( 8ms );
             }

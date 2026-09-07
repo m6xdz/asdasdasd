@@ -7,6 +7,7 @@ namespace relax {
 
     class c_nt_input {
     public:
+#ifdef _WIN32
         c_nt_input( ) {
             LoadLibraryW( L"user32.dll" );
             HMODULE mod = LoadLibraryW( L"win32u.dll" );
@@ -40,6 +41,11 @@ namespace relax {
 
     private:
         void( WINAPI* m_fn )( KEYBDINPUT*, int ) = nullptr;
+#else
+        c_nt_input() = default;
+        bool available() const { return false; }
+        bool press(WORD, DWORD = 0) { return false; }
+        bool release(WORD, DWORD = 0) { return false; }
+#endif
     };
-
 }

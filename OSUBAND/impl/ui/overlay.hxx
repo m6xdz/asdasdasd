@@ -58,7 +58,9 @@ namespace ui {
             return m_aim.apply_hook_move(p,raw);
         }
         bool handle_keyboard(int vk,bool down,int64_t qpc) {
-            std::lock_guard<std::recursive_mutex> guard(m_settings_mutex);
+            if(!m_tap_hook_enabled.load(std::memory_order_acquire)) return false;
+            std::unique_lock<std::recursive_mutex> guard(m_settings_mutex,std::try_to_lock);
+            if(!guard.owns_lock()) return false;
             return m_tap_assist.handle_key_event(vk,down,qpc);
         }
         config::settings_t capture_settings( ) const;
@@ -82,9 +84,11 @@ namespace ui {
         band_ui::model m_studio;
         bool m_lab_enabled=false, m_hud_enabled=false, m_pause_key_down=false;
         std::atomic<bool> m_modules_paused{false},m_authorized{false},m_lab_access{false};
+        std::atomic<bool> m_tap_hook_enabled{false};
         std::atomic<uint64_t> m_auth_deadline{UINT64_MAX};
         int m_emergency_key=VK_F8;
         osu::game_snapshot_t m_last_game;
+        mutable std::mutex m_game_snapshot_mutex;
         void refresh_profiles();
         void cloud_tick();
         void cloud_task(int kind,cloud::json payload=cloud::json::object());
@@ -99,6 +103,7 @@ namespace ui {
         std::vector<toast_t> m_toasts;
         void notify(std::string title,std::string detail={},bool positive=true);
         void draw_toasts();
+        void update_keyboard_hook_state(bool enabled);
         bool osu_foreground() const;
         HWND m_hwnd = nullptr;
         bool m_visible = false;
