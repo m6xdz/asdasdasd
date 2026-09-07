@@ -4,7 +4,7 @@
 namespace band_loader {
 inline constexpr int width=920,height=590;
 struct model {
- int page=0,selected=-1;bool connected=false,authorized=false,busy=false,lab_access=false,lab_channel=false,close_after=true,osu_running=false;
+ int page=0,selected=-1;bool connected=false,authorized=false,busy=false,can_stable=false,can_beta=false,lab_access=false,lab_channel=false,close_after=true,osu_running=false;
  std::string user="Your next session",plan="Connect your OSU!BAND account",code,version="1.1.0",status="Ready when you are.",message;
  float progress=0,time=0;ImTextureID avatar=0;cloud::runtime_settings appearance;
 };
@@ -21,7 +21,8 @@ inline actions draw(model& m){using namespace band_ui;actions a;apply_theme();au
  if(remote.logo=="pulse"){const float k=prefs.animations?1.f+.12f*std::sin(m.time*3):1.f;d->AddCircle(P(46,43),16*k,rose,48,3);d->AddCircleFilled(P(46,43),5,ink,24);}else brand(d,P(29,26),34);
  prefs=saved;
  d->PushClipRect(P(76,20),P(805,65),true);text(d,P(76,27),remote.title.c_str(),24);d->PopClipRect();
- if(button("##min","-",P(823,27),P(29,28)))a.minimize=true;if(button("##close","x",P(864,27),P(29,28)))a.close=true;
+ if(button("##min","-",P(823,27),P(29,28)))a.minimize=true;
+ if(button("##close","x",P(864,27),P(29,28)))a.close=true;
  const char* tabs[]={"Session","Settings"};for(int i=0;i<2;++i)if(button(tabs[i],tabs[i],P(29+i*151,100),P(140,37),m.page==i))m.page=i;
  if(m.connected&&button("##account","My account",P(745,100),P(147,37)))a.open_site=true;
  d->AddLine(P(29,156),P(891,156),border);
@@ -46,8 +47,9 @@ inline actions draw(model& m){using namespace band_ui;actions a;apply_theme();au
   }else{
    text(d,P(405,205),"OSU BAND",24);if(remote.showVersion)text(d,P(405,241),m.version.c_str(),13,muted);
    const char* state=m.authorized?"SUBSCRIPTION ACTIVE":"SUBSCRIPTION REQUIRED";text(d,P(667,242),state,11,m.authorized?IM_COL32(155,214,175,255):rose);
-   if(button("##stable","Stable",P(406,283),P(223,38),!m.lab_channel,!m.busy)){m.lab_channel=false;a.channel=true;}
-   if(button("##lab","Beta",P(643,283),P(223,38),m.lab_channel,!m.busy&&m.lab_access)){m.lab_channel=true;a.channel=true;}
+   if(button("##stable","Stable",P(406,283),P(223,38),!m.lab_channel,!m.busy&&m.can_stable)){m.lab_channel=false;a.channel=true;}
+   if(button("##lab","Beta",P(643,283),P(223,38),m.lab_channel,!m.busy&&m.can_beta)){m.lab_channel=true;a.channel=true;}
+   if(!m.can_beta) text(d,P(645,326),"Beta subscription required",11,muted);
    text(d,P(407,343),m.osu_running?"osu!lazer is running":"Open osu!lazer before starting",14,m.osu_running?ink:muted);
    if(m.busy){ImGui::SetCursorScreenPos(P(406,378));ImGui::ProgressBar(m.progress,P(461,7),"");text(d,P(406,397),m.status.substr(0,59).c_str(),12,muted);}
    if(button("##launch",m.busy?"Preparing your session...":m.authorized?remote.launchLabel.c_str():"Open account to activate a key",P(406,444),P(286,39),true,!m.busy)) {if(m.authorized)a.launch=true;else a.open_site=true;}

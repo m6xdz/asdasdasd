@@ -154,7 +154,8 @@ inline std::string key_name(int vk){
     switch(vk){case 0x2D:return "Insert";case 0x24:return "Home";case 0x23:return "End";case 0x21:return "Page Up";case 0x22:return "Page Down";case 0x09:return "Tab";case 0x20:return "Space";default:return "VK "+std::to_string(vk);}
 }
 inline std::string date_label(int64_t ms){
-    if(ms<=0)return "—";std::time_t raw=static_cast<std::time_t>(ms/1000);std::tm tm{};
+    if(ms<=0)return "—";
+    std::time_t raw=static_cast<std::time_t>(ms/1000);std::tm tm{};
 #ifdef _WIN32
     localtime_s(&tm,&raw);
 #else
@@ -288,7 +289,8 @@ inline actions draw(model& m,config::settings_t& s) {
             if(!profile.review_note.empty())text(row,ImVec2(p.x+x12,p.y+S(82)),profile.review_note.c_str(),12,rose);
             row->PopClipRect();ImGui::PopID();
         }
-        if(!any)ImGui::TextWrapped("%s",tr(m.cloud_busy?"Loading...":"No configs yet"));ImGui::EndChild();
+        if(!any){ImGui::TextWrapped("%s",tr(m.cloud_busy?"Loading...":"No configs yet"));}
+        ImGui::EndChild();
         card(d,P(686,235),ImVec2(406,364));text(d,P(708,254),"Publish your config",21);
         text(d,P(708,289),"Name",13,muted);input("##name",m.profile_name,sizeof(m.profile_name),P(708,309),360);
         text(d,P(708,350),"Description",13,muted);input("##description",m.description,sizeof(m.description),P(708,370),360);

@@ -14,7 +14,8 @@ struct runtime_settings {
     static runtime_settings parse(const nlohmann::json& j){
         runtime_settings s;
         auto text=[&](const char* key,size_t max,bool empty=false){auto v=j.at(key).get<std::string>();
-            if(v.size()>max||(!empty&&v.empty())||std::any_of(v.begin(),v.end(),[](unsigned char c){return c<32;}))throw std::runtime_error("Invalid loader text");return v;};
+            if(v.size()>max||(!empty&&v.empty())||std::any_of(v.begin(),v.end(),[](unsigned char c){return c<32;}))throw std::runtime_error("Invalid loader text");
+            return v;};
         s.title=text("title",160);s.announcement=text("announcement",640,true);
         s.connectLabel=text("connectLabel",160);s.launchLabel=text("launchLabel",160);
         s.accent=j.at("accent").get<std::string>();if(!std::regex_match(s.accent,std::regex("#[a-fA-F0-9]{6}")))throw std::runtime_error("Invalid loader color");

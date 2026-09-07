@@ -20,9 +20,9 @@ void c_overlay::cloud_task(int kind,cloud::json payload) {
 void c_overlay::refresh_profiles(){cloud_task(1);}
 void c_overlay::cloud_tick() {
     m_avatars.tick(m_device);
-    m_studio.avatar=reinterpret_cast<ImTextureID>(m_avatars.get(m_avatar_url));
+    m_studio.avatar=static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(m_avatars.get(m_avatar_url)));
     m_studio.profile_avatars.clear();
-    for(const auto& p:m_studio.profiles)m_studio.profile_avatars.push_back(reinterpret_cast<ImTextureID>(m_avatars.get(p.avatar_url)));
+    for(const auto& p:m_studio.profiles)m_studio.profile_avatars.push_back(static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(m_avatars.get(p.avatar_url))));
     if(m_cloud_job.valid()&&m_cloud_job.wait_for(std::chrono::milliseconds(0))==std::future_status::ready){
         auto r=m_cloud_job.get();m_studio.cloud_busy=false;m_next_cloud_poll=GetTickCount64()+8000;
         if(!r.error.empty()){m_studio.message=r.error;notify("Cloud",r.error,false);}
@@ -32,12 +32,16 @@ void c_overlay::cloud_tick() {
             m_studio.profiles.clear();m_studio.selected=-1;
             m_studio.user_id=r.data.value("userId",m_studio.user_id);
             for(const auto& c:r.data.at("configs")){
+                const auto jstr=[&](const char* key,const char* fallback=""){auto it=c.find(key);return it!=c.end()&&it->is_string()?it->get<std::string>():std::string(fallback);};
+                const auto ji64=[&](const char* key,int64_t fallback=0){auto it=c.find(key);return it!=c.end()&&it->is_number_integer()?it->get<int64_t>():fallback;};
+                const auto jint=[&](const char* key,int fallback=0){auto it=c.find(key);return it!=c.end()&&it->is_number_integer()?it->get<int>():fallback;};
+                const auto jbool=[&](const char* key,bool fallback=false){auto it=c.find(key);return it!=c.end()&&it->is_boolean()?it->get<bool>():fallback;};
                 config::profile_meta_t p;p.id=c.at("id");p.owner_id=c.at("owner_id");p.name=c.at("name");
-                p.author=c.value("author","");p.avatar_url=c.value("avatar","");p.description=c.value("description","");
-                p.status=c.value("status","private");p.review_note=c.value("review_note","");
-                p.author_role=c.value("author_role","user");p.updated_at=c.value("updated_at",int64_t(0));
-                p.reviewed_at=c.value("reviewed_at",int64_t(0));p.reviewed_by_name=c.value("reviewed_by_name","");
-                p.official=c.value("official",0)!=0;p.installed=c.value("installed",false);p.revision=c.at("revision");p.channel=c.value("channel","lab");
+                p.author=jstr("author");p.avatar_url=jstr("avatar");p.description=jstr("description");
+                p.status=jstr("status","private");p.review_note=jstr("review_note");
+                p.author_role=jstr("author_role","user");p.updated_at=ji64("updated_at");
+                p.reviewed_at=ji64("reviewed_at");p.reviewed_by_name=jstr("reviewed_by_name");
+                p.official=jint("official")!=0;p.installed=jbool("installed");p.revision=jint("revision",1);p.channel=jstr("channel","lab");
                 if(p.channel!="lab")continue; // defense in depth: Beta never renders Stable configs.
                 if(p.id==selected)m_studio.selected=static_cast<int>(m_studio.profiles.size());
                 if(p.owner_id==m_studio.user_id){

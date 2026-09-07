@@ -85,7 +85,13 @@ namespace ui {
 
         if ( !m_hwnd ) return false;
 
-        SetLayeredWindowAttributes( m_hwnd, 0, 255, LWA_ALPHA );
+        // Use an explicit black color-key for the untouched DX11 backbuffer.
+        // The previous full-window LWA_ALPHA=255 path could make transparent pixels
+        // opaque black in fullscreen/compositor edge cases. UI panels are near-black,
+        // never exact RGB(0,0,0), so the color key only removes the clear surface.
+        SetLayeredWindowAttributes( m_hwnd, RGB(0,0,0), 0, LWA_COLORKEY );
+        MARGINS glass{ -1, -1, -1, -1 };
+        DwmExtendFrameIntoClientArea( m_hwnd, &glass );
 
         ShowWindow( m_hwnd, SW_HIDE );
         UpdateWindow( m_hwnd );
@@ -96,6 +102,8 @@ namespace ui {
         ImGui::CreateContext( );
         ImGuiIO& io = ImGui::GetIO( );
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.IniFilename = nullptr;
+        io.LogFilename = nullptr;
 
         band_ui::load_fonts("C:\\Windows\\Fonts\\segoeui.ttf");
 
@@ -175,8 +183,8 @@ namespace ui {
     }
 
     void c_overlay::handle_hotkeys( ) {
-        const bool in_osu=osu_foreground();
-        if(!in_osu){m_visible=false;m_f4_was_down=false;m_pause_key_down=false;return;}
+        // The menu is a desktop overlay again: it may be opened even when osu! is
+        // minimized/not focused. Gameplay hooks still check the game state separately.
         const bool pause=(GetAsyncKeyState(m_emergency_key)&0x8000)!=0;
         if(pause&&!m_pause_key_down)m_modules_paused=!m_modules_paused;
         m_pause_key_down=pause;
@@ -188,40 +196,36 @@ namespace ui {
 
     void c_overlay::update_overlay_position( ) {
         if ( !m_hwnd ) return;
-
-        // Window geometry does not need to be recomputed every render tick.
-        // Throttling this also avoids repeated virtual-desktop and Win32 calls.
         static uint64_t next_update_ms = 0;
-        const auto now_ms = get_time_ms( );
-        if ( now_ms < next_update_ms ) return;
+        const uint64_t now_ms = GetTickCount64();
+        if(now_ms < next_update_ms) return;
         next_update_ms = now_ms + 100;
 
-        const HWND osu_hwnd = input::target_window( );
-        input::invalidate_virtual_desktop( );
-        input::virtual_desktop( );
-
-        int target_x = 0, target_y = 0, target_w = 0, target_h = 0;
-
-        if ( !osu_hwnd || !IsWindow( osu_hwnd ) || IsIconic(osu_hwnd) ) return;
+        int x=0,y=0,w=0,h=0;
+        const HWND osu=input::target_window();
         RECT client{};
-        if ( playfield::get_playfield_rect( osu_hwnd, client ) ) {
-            target_x = client.left; target_y = client.top;
-            target_w = client.right - client.left; target_h = client.bottom - client.top;
-        } else return;
-
-        static RECT previous{};
-        const RECT current{ target_x, target_y, target_x + target_w, target_y + target_h };
-        if ( !EqualRect( &previous, &current ) ) {
-            SetWindowPos( m_hwnd, HWND_TOPMOST, target_x, target_y, target_w, target_h, SWP_NOACTIVATE );
-            previous = current;
+        if(osu && IsWindow(osu) && !IsIconic(osu) && playfield::get_playfield_rect(osu,client)) {
+            x=client.left; y=client.top; w=client.right-client.left; h=client.bottom-client.top;
+        } else if(m_visible) {
+            // When osu! is minimized/closed, keep the settings menu on the monitor
+            // the user is currently working on instead of forcibly closing it.
+            HWND anchor=GetForegroundWindow();
+            HMONITOR mon=MonitorFromWindow(anchor?anchor:m_hwnd,MONITOR_DEFAULTTONEAREST);
+            MONITORINFO mi{};mi.cbSize=sizeof(mi);
+            if(GetMonitorInfoW(mon,&mi)){x=mi.rcWork.left;y=mi.rcWork.top;w=mi.rcWork.right-mi.rcWork.left;h=mi.rcWork.bottom-mi.rcWork.top;}
         }
+        if(w<=0||h<=0)return;
+        static RECT previous{};
+        RECT current{x,y,x+w,y+h};
+        if(!EqualRect(&previous,&current)){SetWindowPos(m_hwnd,HWND_TOPMOST,x,y,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);previous=current;}
     }
 
     void c_overlay::apply_visibility( ) {
-        if ( !m_hwnd ) return;
-        const bool in_osu=osu_foreground();
-        const bool should_show=in_osu&&(m_visible||(m_lab_enabled&&m_hud_enabled&&m_lab_access)||!m_toasts.empty());
-        if(!should_show){ShowWindow(m_hwnd,SW_HIDE);return;}
+        if(!m_hwnd)return;
+        const HWND osu=input::target_window();
+        const bool game_window=osu&&IsWindow(osu)&&!IsIconic(osu);
+        const bool show=m_visible||(game_window&&(m_lab_enabled&&m_hud_enabled&&m_lab_access))||!m_toasts.empty();
+        if(!show){ShowWindow(m_hwnd,SW_HIDE);return;}
         LONG ex=GetWindowLongW(m_hwnd,GWL_EXSTYLE);
         ex|=WS_EX_TOOLWINDOW|WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_NOACTIVATE;
         ex&=~WS_EX_APPWINDOW;
@@ -322,7 +326,9 @@ namespace ui {
     }
 
     void c_overlay::render_frame( ) {
-        bool should_show = osu_foreground() && (m_visible || (m_lab_enabled && m_hud_enabled&&m_lab_access) || !m_toasts.empty());
+        const HWND osu_hwnd=input::target_window();
+        const bool game_window=osu_hwnd&&IsWindow(osu_hwnd)&&!IsIconic(osu_hwnd);
+        bool should_show = m_visible || (game_window && m_lab_enabled && m_hud_enabled&&m_lab_access) || !m_toasts.empty();
         if ( !should_show ) {
             // Do not copy the full beatmap snapshot or submit an empty frame
             // while the overlay is hidden.  The window is already hidden by
@@ -356,18 +362,8 @@ namespace ui {
             else m_menu_open_anim=1.f;
         }
 
-        if ( m_visible ) {
-            ImDrawList* bg_dl = ImGui::GetBackgroundDrawList( );
-            const ImVec2 disp = ImGui::GetIO( ).DisplaySize;
-            const float bg_a = m_menu_open_anim * 0.2f;
-            if ( bg_a > 0.01f ) {
-                const int a = static_cast<int>( bg_a * 255 );
-                bg_dl->AddRectFilledMultiColor(
-                    ImVec2( 0, 0 ), disp,
-                    IM_COL32( 2, 2, 12, a ), IM_COL32( 2, 2, 12, a ),
-                    IM_COL32( 4, 2, 16, a ), IM_COL32( 4, 2, 16, a ) );
-            }
-        }
+        // Deliberately do not tint the full game/desktop surface. The menu itself
+        // carries its own background; this avoids black/blur remnants after closing.
 
         if ( m_visible ) {
             draw_menu( snap );
