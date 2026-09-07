@@ -61,44 +61,6 @@ namespace {
         return anims[ key ];
     }
 
-    enum ACCENT_STATE {
-        ACCENT_DISABLED = 0,
-        ACCENT_ENABLE_GRADIENT = 1,
-        ACCENT_ENABLE_TRANSPARENTGRADIENT = 2,
-        ACCENT_ENABLE_BLURBEHIND = 3,
-        ACCENT_ENABLE_ACRYLICBLURBEHIND = 4,
-        ACCENT_ENABLE_HOSTBACKDROP = 5,
-        ACCENT_INVALID_STATE = 6
-    };
-
-    struct ACCENT_POLICY {
-        int State;
-        int Flags;
-        int GradientColor;
-        int AnimationId;
-    };
-
-    struct WINCOMPATTRDATA {
-        int Attribute;
-        ACCENT_POLICY* Data;
-        SIZE_T SizeOfData;
-        int Reserved;
-    };
-
-    inline void enable_acrylic( HWND hwnd ) {
-        HMODULE user32 = GetModuleHandleW( L"user32.dll" );
-        if ( !user32 ) return;
-        auto SetWindowCompositionAttribute = reinterpret_cast<BOOL (WINAPI*)( HWND, WINCOMPATTRDATA* )>(
-            GetProcAddress( user32, "SetWindowCompositionAttribute" ) );
-        if ( !SetWindowCompositionAttribute ) return;
-
-        ACCENT_POLICY policy = { ACCENT_ENABLE_BLURBEHIND, 0, 0x00000000, 0 };
-        WINCOMPATTRDATA data = { 19, &policy, sizeof( policy ), 0 };
-        SetWindowCompositionAttribute( hwnd, &data );
-
-        MARGINS margins = { -1, -1, -1, -1 };
-        DwmExtendFrameIntoClientArea( hwnd, &margins );
-    }
 
 }
 
