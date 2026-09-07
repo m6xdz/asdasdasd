@@ -116,7 +116,7 @@ int WINAPI wWinMain( HINSTANCE instance, HINSTANCE, PWSTR, int ) {
             MessageBoxW(nullptr,L"A background task stopped. Restart OSU BAND; details are in debug.log.",L"OSU BAND Beta",MB_ICONERROR|MB_OK);
             break;
         }
-        Sleep( 1 );
+        Sleep( 2 );
     }
 
     monitoring=false;if(monitor.joinable())monitor.join();

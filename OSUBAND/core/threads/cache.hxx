@@ -270,7 +270,7 @@ namespace threads {
                 // Keep a small cadence while playing and relax it outside a map.
                 // This removes a large amount of unnecessary CPU contention.
                 if ( in_play )
-                    std::this_thread::sleep_for( 1ms );
+                    std::this_thread::sleep_for( 2ms );
                 else
                     std::this_thread::sleep_for( 8ms );
             }

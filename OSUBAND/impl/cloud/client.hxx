@@ -95,9 +95,11 @@ inline json load_encrypted(){auto path=storage()/L"session.dat";std::error_code 
   if(!valid_origin(c.origin)){c.origin.clear();c.access_token.clear();}return c;
  }
  void persist()const{save_encrypted({{"origin",origin},{"token",access_token}});}
- json api(const std::string& path,const json* payload=nullptr,bool authenticated=true)const{
+ json api(const std::string& path,const json* payload=nullptr,bool authenticated=true,const std::string& runtime_channel="")const{
   if(!valid_origin(origin))throw std::runtime_error("Set your OSU!BAND site address first");
-  std::wstring headers=L"X-OSUBAND-HWID: "+wide(hwid)+L"\r\n";if(authenticated){if(!std::regex_match(access_token,std::regex("[a-f0-9]{64}")))throw std::runtime_error("Connect your account first");headers+=L"Authorization: Bearer "+wide(access_token)+L"\r\n";}
+  std::wstring headers=L"X-OSUBAND-HWID: "+wide(hwid)+L"\r\n";
+  if(runtime_channel=="stable"||runtime_channel=="lab")headers+=L"X-OSUBAND-CHANNEL: "+wide(runtime_channel)+L"\r\n";
+  if(authenticated){if(!std::regex_match(access_token,std::regex("[a-f0-9]{64}")))throw std::runtime_error("Connect your account first");headers+=L"Authorization: Bearer "+wide(access_token)+L"\r\n";}
   auto r=request(origin+"/api/v1/"+path,payload?L"POST":L"GET",payload?payload->dump():"",headers);
   auto data=json::parse(r.text,nullptr,false);if(!data.is_object())throw std::runtime_error("The site did not return an API response. Check its address and hosting settings.");
   if(r.status<200||r.status>=300)throw api_error(r.status,data.value("error","The request failed"));return data;

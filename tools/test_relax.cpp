@@ -20,5 +20,15 @@ int main(){
  map.objects.clear();for(int t=0;t<1000;t+=100){osu::hit_object_t o{};o.type=2;o.start_time=t;o.end_time=t+300;map.objects.push_back(o);}
  r.tap_style=1;r.singletap_bpm_cap=99999;
  for(int t=0;t<1500;t+=5){g.cur_time=t;r.update(g,map);consume();}r.on_leave_play(g);consume();assert(down.empty());
- std::cout<<"PASS: 60-minute simulated map, "<<presses<<" key presses, max queue "<<max_queue<<", retry, changed keys, failed input, overlapping holds\n";
+ // Reproduce the reported pattern: consecutive sliders followed by a reader/render stall.
+ // Relax must resync instead of replaying a backlog in one frame or leaving a key held.
+ map.objects.clear();
+ for(int t=0;t<2400;t+=320){osu::hit_object_t o{};o.type=2;o.start_time=t;o.end_time=t+270;map.objects.push_back(o);}
+ r.tap_style=0;r.singletap_bpm_cap=100;
+ for(int t=0;t<850;t+=5){g.cur_time=t;r.update(g,map);consume();assert(r.queue_size()<24);}
+ g.cur_time=1450; // >250 ms discontinuity: simulate the one-second hiccup.
+ r.update(g,map);consume();assert(r.queue_size()<24);assert(down.size()<=1);
+ for(int t=1455;t<2900;t+=5){g.cur_time=t;r.update(g,map);consume();assert(r.queue_size()<24);}
+ r.on_leave_play(g);consume();assert(down.empty());
+ std::cout<<"PASS: 60-minute simulated map, "<<presses<<" key presses, max queue "<<max_queue<<", retry, changed keys, failed input, overlapping holds, slider stall resync\n";
 }

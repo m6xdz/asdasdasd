@@ -72,6 +72,7 @@ namespace relax {
             m_last_audio_sync_time = 0.0;
             m_last_jitter = 0.f;
             m_stream_length=0;
+            m_last_update_game_time = -1;
         }
 
     public:
@@ -89,11 +90,17 @@ namespace relax {
 
             if ( game_time < m_last_game_time - 200 ) {
                 reset_state( game );
+            } else if (m_last_update_game_time >= 0 && game_time - m_last_update_game_time > 250) {
+                // A long scheduler/reader stall must not be paid back as a burst of
+                // hundreds of key edges on the render/input thread.  Drop stale
+                // work and resume from the current song position instead.
+                resync_after_time_jump(game,map);
             }
 
             schedule_clicks( game, map );
 
             m_last_game_time = game_time;
+            m_last_update_game_time = game_time;
 
             advance_past_objects( game, map );
             purge_stale( game_time );
@@ -124,6 +131,7 @@ namespace relax {
 
         WORD m_left_vk=0,m_right_vk=0;
         int m_stream_length=0;
+        int m_last_update_game_time=-1;
 
         mutable std::mutex m_mtx;
 
@@ -185,6 +193,23 @@ namespace relax {
             m_last_audio_sync_time = 0.0;
             m_last_jitter = 0.f;
             m_stream_length=0;
+            m_last_update_game_time=-1;
+        }
+
+        void resync_after_time_jump(const osu::game_snapshot_t& game,const osu::beatmap_data_t& map) {
+            release_all_keys(game);
+            m_click_queue.clear();
+            const auto it=std::lower_bound(map.objects.begin(),map.objects.end(),game.cur_time-80,
+                [](const osu::hit_object_t& obj,int t){return obj.start_time<t;});
+            const int previous=static_cast<int>(std::distance(map.objects.begin(),it))-1;
+            m_last_hit_obj_idx=previous;
+            m_scheduled_through_idx=previous;
+            m_last_click_time=-99999;
+            m_use_k2_next=false;
+            m_last_audio_time=game.cur_time;
+            m_last_audio_sync_time=get_time_ms();
+            m_last_jitter=0.f;
+            m_stream_length=0;
         }
 
         static bool send_key(WORD vk,bool down) {
@@ -232,6 +257,13 @@ namespace relax {
                         return !c.pressed && c.press_time < game_time - 50;
                     } ),
                 m_click_queue.end( ) );
+        }
+
+        int key_busy_until(WORD key) const {
+            int until=-1;
+            for(const auto& c:m_click_queue)
+                if(c.key==key&&!c.released)until=std::max(until,c.release_time);
+            return until;
         }
 
         void schedule_clicks( const osu::game_snapshot_t& game, const osu::beatmap_data_t& map ) {
@@ -319,12 +351,25 @@ namespace relax {
                 if ( should_alternate( inter_tap ) )
                     m_use_k2_next = !m_use_k2_next;
 
-                const WORD chosen = m_use_k2_next ? k2 : k1;
+                WORD chosen = m_use_k2_next ? k2 : k1;
+                const WORD other = m_use_k2_next ? k1 : k2;
                 if ( !chosen ) continue;
+
+                // Sliders often overlap the next object's press window.  Never
+                // retrigger a key that is still owned by an active hold when the
+                // other gameplay key is available; doing so used to cut slider
+                // holds and could create a large catch-up burst after a stall.
+                if(key_busy_until(chosen)>press_time+3 && other && key_busy_until(other)<=press_time+3)
+                    chosen=other;
 
                 m_click_queue.push_back( { press_time, release_time, chosen, false, false } );
                 m_last_click_time = press_time;
                 m_scheduled_through_idx = i;
+                if(m_click_queue.size()>128) {
+                    // Defensive bound for malformed maps/readers.  A one-second
+                    // lookahead should never legitimately need this many edges.
+                    break;
+                }
             }
         }
 
@@ -359,7 +404,16 @@ namespace relax {
 
             // Jitter may change event order. Dispatch the earliest due edge,
             // with release-before-press ties, and transfer ownership on retrigger.
+            // Cap work per tick so a reader hiccup can never freeze osu! while
+            // Relax tries to catch up.
+            int dispatched=0;
             for(;;){
+                if(dispatched++>=64){
+                    release_all_keys(game);
+                    m_click_queue.clear();
+                    m_scheduled_through_idx=m_last_hit_obj_idx;
+                    break;
+                }
                 scheduled_click_t* next=nullptr;int when=0;bool releasing=false;
                 for(auto& c:m_click_queue){
                     if(c.released)continue;

@@ -39,11 +39,12 @@ struct model {
     ImTextureID avatar=0;
     std::vector<ImTextureID> profile_avatars;
     std::string user_id;
-    int collection=0,style=0;
-    bool cloud_busy=false,submit=false,can_undo=false,waiting_menu=false;
+    int collection=0;
+    bool cloud_busy=false,can_undo=false,waiting_menu=false;
 };
 struct actions {
-    bool changed=false, save=false, load=false, refresh=false, folder=false;
+    bool changed=false, save_private=false, submit_review=false, load=false, refresh=false;
+    bool install=false, uninstall=false, uninject=false;
     bool browse_replay=false, load_replay=false, close=false, pause=false, bind_menu=false;
 };
 inline void text(ImDrawList* d,ImVec2 p,const char* s,float size=16,ImU32 color=0) {
@@ -175,11 +176,13 @@ inline actions draw(model& m,config::settings_t& s) {
     d->AddRectFilledMultiColor(P(1,1),P(width-1,94),panel,panel,base,base);
     ImGui::SetCursorScreenPos(P(0,0));ImGui::InvisibleButton("##drag",SV(ImVec2(880,83)));
     if(ImGui::IsItemActive()){m.offset.x+=io.MouseDelta.x;m.offset.y+=io.MouseDelta.y;}
-    brand(d,P(28,24),44);text(d,P(85,27),"OSU!BAND",25);
-    d->AddRectFilled(P(221,29),P(276,51),IM_COL32(255,111,142,34),S(11));
-    d->AddRect(P(221,29),P(276,51),IM_COL32(255,148,171,78),S(11));
-    text(d,P(233,33),"BETA",11,rose);
-    text(d,P(85,56),"CONTROL STUDIO",10,muted);
+    brand(d,P(28,24),44);text(d,P(85,30),"OSU!BAND",25);
+    const float pulse=prefs.animations?(0.55f+0.45f*std::sin(m.time*2.4f)):0.75f;
+    const int glowA=static_cast<int>(28+36*pulse);
+    d->AddRectFilled(P(221,27),P(286,53),IM_COL32(255,111,142,glowA),S(13));
+    d->AddRect(P(221,27),P(286,53),IM_COL32(255,148,171,110),S(13),0,S(1.2f));
+    d->AddCircleFilled(P(236,40),S(3.2f),rose);
+    text(d,P(246,33),"BETA",11,rose);
     if(m.avatar)d->AddImageRounded(m.avatar,P(819,20),P(865,66),ImVec2(0,0),ImVec2(1,1),IM_COL32_WHITE,23);
     text(d,P(876,24),m.user.substr(0,22).c_str(),15);text(d,P(876,47),m.plan.substr(0,23).c_str(),12,muted);
     if(button("##close","x",P(1060,23),ImVec2(32,32)))a.close=true;
@@ -279,21 +282,27 @@ inline actions draw(model& m,config::settings_t& s) {
             const auto by=profile.author+" · "+role+" · v"+std::to_string(profile.revision);text(row,ImVec2(p.x+x56,p.y+S(35)),by.c_str(),12,muted);row->PopClipRect();
             text(row,ImVec2(p.x+x438,p.y+S(12)),profile.channel=="lab"?"Beta":"Stable",13,rose);
             const auto stamp=date_label(profile.updated_at);text(row,ImVec2(p.x+x438,p.y+S(35)),stamp.c_str(),12,muted);
-            row->PushClipRect(ImVec2(p.x+x12,p.y+S(56)),ImVec2(p.x+x584,p.y+S(101)),true);
+            if(profile.installed){d->AddRectFilled(ImVec2(p.x+x438,p.y+S(58)),ImVec2(p.x+x584,p.y+S(78)),IM_COL32(255,111,142,28),S(8));text(row,ImVec2(p.x+x438+S(11),p.y+S(61)),"Installed",11,rose);}
+            row->PushClipRect(ImVec2(p.x+x12,p.y+S(56)),ImVec2(p.x+x425,p.y+S(101)),true);
             text(row,ImVec2(p.x+x12,p.y+S(60)),profile.description.c_str(),13,muted);
             if(!profile.review_note.empty())text(row,ImVec2(p.x+x12,p.y+S(82)),profile.review_note.c_str(),12,rose);
             row->PopClipRect();ImGui::PopID();
         }
         if(!any)ImGui::TextWrapped("%s",tr(m.cloud_busy?"Loading...":"No configs yet"));ImGui::EndChild();
-        card(d,P(686,235),ImVec2(406,364));text(d,P(708,254),"Your settings",21);
-        text(d,P(708,292),"Name",13,muted);input("##name",m.profile_name,sizeof(m.profile_name),P(708,313),360);
-        text(d,P(708,354),"Style",13,muted);ImGui::SetCursorScreenPos(P(708,375));ImGui::SetNextItemWidth(S(360));
-        ImGui::BeginDisabled();ImGui::Combo("##style",&m.style,"Legit\0Rage\0Relax Legit\0Relax Rage\0Tap\0Replay\0");ImGui::EndDisabled();
-        text(d,P(708,416),"Description",13,muted);input("##description",m.description,sizeof(m.description),P(708,438),360);
-        toggle("##submit","Submit for review",m.submit,P(708,486),360);
-        if(button("##save","Save to cloud",P(708,541),ImVec2(360,37),true,!m.cloud_busy))a.save=true;
-        if(button("##apply","Apply",P(28,613),ImVec2(196,36),true,!m.cloud_busy&&m.selected>=0))a.load=true;
-        text(d,P(242,623),"Changes apply between maps",13,muted);
+        card(d,P(686,235),ImVec2(406,364));text(d,P(708,254),"Publish your config",21);
+        text(d,P(708,289),"Name",13,muted);input("##name",m.profile_name,sizeof(m.profile_name),P(708,309),360);
+        text(d,P(708,350),"Description",13,muted);input("##description",m.description,sizeof(m.description),P(708,370),360);
+        text(d,P(708,415),"Save private keeps it only in your account.",13,muted);
+        text(d,P(708,440),"Submit for review asks an admin to publish it",13,muted);
+        text(d,P(708,461),"for everyone using the Beta build.",13,muted);
+        if(button("##private","Save private",P(708,500),ImVec2(171,38),false,!m.cloud_busy))a.save_private=true;
+        if(button("##review","Submit for review",P(897,500),ImVec2(171,38),true,!m.cloud_busy))a.submit_review=true;
+        bool canSelected=!m.cloud_busy&&m.selected>=0&&m.selected<static_cast<int>(m.profiles.size());
+        if(canSelected){const auto& selected=m.profiles[m.selected];
+            if(selected.installed){if(button("##apply","Apply",P(28,613),ImVec2(150,36),true))a.load=true;if(button("##remove","Remove",P(190,613),ImVec2(150,36)))a.uninstall=true;}
+            else if(button("##install","Install",P(28,613),ImVec2(150,36),true))a.install=true;
+        }else button("##none","Select a config",P(28,613),ImVec2(196,36),false,false);
+        text(d,P(358,623),"Cloud only · changes apply between maps",13,muted);
     }else if(m.page==2){
         text(d,P(28,181),"Beta",28);
         card(d,P(28,250),ImVec2(1064,355));
@@ -319,7 +328,8 @@ inline actions draw(model& m,config::settings_t& s) {
         const auto menuText=m.waiting_menu?std::string(tr("Press a key...")):std::string(tr("Menu key"))+" · "+key_name(s.menu_keybind);
         if(button("##menu-key",menuText.c_str(),P(590,438),ImVec2(478,39),false,true))a.bind_menu=true;
         text(d,P(590,493),"F8  /  Pause all modules",17);
-        a.changed|=toggle("##capture","Exclude menu from capture",s.stream_proof,P(590,548),478);
+        a.changed|=toggle("##capture","Exclude menu from capture",s.stream_proof,P(590,530),478);
+        if(button("##uninject","UNINJECT",P(590,574),ImVec2(478,36),false,true))a.uninject=true;
     }
     if(!m.message.empty()){d->PushClipRect(P(28,655),P(1092,682),true);text(d,P(29,660),m.message.c_str(),13,rose);d->PopClipRect();}
     d->AddLine(P(28,684),P(1092,684),border);

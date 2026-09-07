@@ -76,56 +76,9 @@ namespace config {
 
     };
 
-    inline std::filesystem::path configs_dir( ) {
-        #ifdef _WIN32
-        wchar_t appdata[ MAX_PATH ]{};
-        if ( SUCCEEDED( SHGetFolderPathW( nullptr, CSIDL_APPDATA, nullptr, 0, appdata ) ) ) {
-            std::filesystem::path dir = std::filesystem::path( appdata ) / L"OSUBAND" / L"configs";
-            std::error_code ec;
-            std::filesystem::create_directories( dir, ec );
-            return dir;
-        }
-        #else
-        if (const char* override_dir = std::getenv("OSUBAND_CONFIG_DIR")) {
-            std::filesystem::path dir(override_dir);
-            std::error_code ec; std::filesystem::create_directories(dir, ec); return dir;
-        }
-        #endif
-        std::filesystem::path dir = std::filesystem::current_path( ) / "configs";
-        std::error_code ec;
-        std::filesystem::create_directories( dir, ec );
-        return dir;
-    }
-
-    inline std::string sanitize_name( std::string name ) {
-        name.erase( std::remove_if( name.begin( ), name.end( ),
-            []( char c ) {
-                return c == '\\' || c == '/' || c == ':' || c == '*' || c == '?' || c == '"' ||
-                       c == '<' || c == '>' || c == '|' || static_cast<unsigned char>(c) < 32;
-            } ),
-            name.end( ) );
-        while ( !name.empty( ) && std::isspace( static_cast<unsigned char>( name.back( ) ) ) )
-            name.pop_back( );
-        size_t start = 0;
-        while ( start < name.size( ) && std::isspace( static_cast<unsigned char>( name[ start ] ) ) )
-            ++start;
-        name = name.substr(start, 80);
-        while (!name.empty() && (name.back()=='.' || name.back()==' ')) name.pop_back();
-        if (name=="." || name=="..") return {};
-        std::string upper=name; for(char& c:upper) c=static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        const auto stem=upper.substr(0,upper.find('.'));
-        if(stem=="CON" || stem=="PRN" || stem=="AUX" || stem=="NUL" ||
-           (stem.size()==4 && (stem.substr(0,3)=="COM" || stem.substr(0,3)=="LPT") && stem[3]>='0' && stem[3]<='9')) return {};
-        return name;
-    }
-
-    inline std::filesystem::path profile_path( const std::string& name ) {
-        const auto safe=sanitize_name(name);
-        if (safe.empty()) return {};
-        // char8_t tells filesystem::path to decode UTF-8, including on Windows.
-        const std::u8string filename(safe.begin(), safe.end());
-        return configs_dir() / std::filesystem::path(filename + u8".cfg");
-    }
+    // Runtime configs are cloud-only.  The client deliberately does not
+    // create a local configs directory or persist .cfg files.  Only the
+    // encrypted account/device session is stored by impl/cloud/client.hxx.
 
     inline void write_line( std::ostream& out, const char* key, bool v ) {
         out << key << '=' << ( v ? '1' : '0' ) << '\n';
@@ -422,104 +375,21 @@ namespace config {
         if(s.replay_enabled) {s.autobot_enabled=false;s.aim_enabled=false;s.relax_enabled=false;s.tap_enabled=false;}
         else if(s.autobot_enabled) {s.aim_enabled=false;s.relax_enabled=false;s.tap_enabled=false;}
         else if(s.relax_enabled) s.tap_enabled=false;
-        if(!s.lab_enabled) s.hud_enabled=false;
     }
 
     struct profile_meta_t {
         std::string name, author="OSU!BAND", recipient="Everyone", description, channel="stable";
         int revision=1;
-        std::string id,owner_id,avatar_url,style="Legit",status="private",review_note,author_role="user";
-        int64_t updated_at=0;
-        bool official=false;
+        std::string id,owner_id,avatar_url,status="private",review_note,author_role="user",reviewed_by_name;
+        int64_t updated_at=0,reviewed_at=0;
+        bool official=false,installed=false;
     };
 
-    inline bool save_profile(const std::string& name, const settings_t& source, const profile_meta_t* meta=nullptr) {
-        const auto path=profile_path(name); if(path.empty()) return false;
-        auto temp=path; temp += ".tmp";
-        settings_t s=source; validate(s);
-        {std::ofstream out(temp,std::ios::trunc); if(!out) return false;
-        write_line(out,"schema",2);
-        if(meta) {write_line(out,"meta.author",meta->author);write_line(out,"meta.recipient",meta->recipient);
-            write_line(out,"meta.description",meta->description);write_line(out,"meta.channel",meta->channel);
-            write_line(out,"meta.revision",meta->revision);}
-        serialize_settings(out,name,s); out.flush(); if(!out) return false;}
-        #ifdef _WIN32
-        return MoveFileExW(temp.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;
-        #else
-        std::error_code ec; std::filesystem::rename(temp,path,ec); return !ec;
-        #endif
-    }
+    // Kept as explicit stubs so older call sites fail closed instead of
+    // silently writing profile files to disk.
+    inline bool save_profile(const std::string&, const settings_t&, const profile_meta_t* =nullptr) { return false; }
+    inline bool load_profile(const std::string&, settings_t&) { return false; }
+    inline std::vector<std::string> list_profiles() { return {}; }
 
-    inline bool load_profile(const std::string& name, settings_t& s) {
-        const auto path=profile_path(name); if(path.empty()) return false;
-        std::error_code ec; auto size=std::filesystem::file_size(path,ec); if(ec || size>65536) return false;
-        std::ifstream in(path); if(!in) return false;
-        if(!parse_settings(in,s)) return false; validate(s); return true;
-    }
-
-    inline profile_meta_t profile_metadata(const std::string& name) {
-        profile_meta_t meta; meta.name=name; meta.author="Local"; meta.recipient="You";
-        std::ifstream in(profile_path(name)); std::string line;
-        while(std::getline(in,line)) {
-            auto eq=line.find('='); if(eq==std::string::npos) continue;
-            auto key=line.substr(0,eq), val=unescape_value(line.substr(eq+1));
-            if(key=="meta.author") meta.author=val.substr(0,80);
-            if(key=="meta.recipient") meta.recipient=val.substr(0,80);
-            if(key=="meta.description") meta.description=val.substr(0,240);
-            if(key=="meta.channel") meta.channel=val=="lab"?"lab":"stable";
-        }
-        return meta;
-    }
-
-    inline void install_builtins() {
-        struct seed {const char* name; const char* description; int kind;};
-        // Keep the profile files user-editable, but give the built-in library
-        // names that describe the actual play style instead of implementation
-        // terms. Existing installs are migrated only when the new name is free.
-        const std::pair<const char*, const char*> migrations[] = {
-            {"01 - Clean start", "01 - Clean Start"},
-            {"02 - Precision", "02 - Legit Precision"},
-            {"03 - Rhythm", "03 - Relax Rhythm"},
-            {"04 - Replay study", "06 - Replay Study"}
-        };
-        for ( const auto& migration : migrations ) {
-            const auto old_path = profile_path( migration.first );
-            const auto new_path = profile_path( migration.second );
-            std::error_code ec;
-            if ( std::filesystem::exists( old_path, ec ) && !std::filesystem::exists( new_path, ec ) )
-                std::filesystem::rename( old_path, new_path, ec );
-        }
-
-        const seed seeds[]={{"01 - Clean Start","No modules enabled. A clean starting point.",0},
-            {"02 - Legit Precision","Light, limited cursor correction for a controlled session.",1},
-            {"03 - Relax Rhythm","Relax timing with alternating keys. No cursor automation.",2},
-            {"04 - Tap Timing","Tap Assist only, with a small timing window.",4},
-            {"05 - Aggressive Focus","Stronger cursor correction with the legit limit disabled.",5},
-            {"06 - Replay Study","Cursor-only replay. Select your own .osr before enabling.",3}};
-        for(const auto& seed:seeds) {if(std::filesystem::exists(profile_path(seed.name)))continue;
-            settings_t s;
-            if(seed.kind==1){s.aim_enabled=true;s.aim_strength_x=3.f;s.aim_strength_y=3.f;s.aim_lerp=.18f;}
-            if(seed.kind==2){s.relax_enabled=true;s.relax_ur=60;s.relax_tap_style=0;}
-            if(seed.kind==3){s.replay_parse_buttons=false;}
-            if(seed.kind==4){s.tap_enabled=true;s.tap_assist_window=65;s.tap_randomization=8;}
-            if(seed.kind==5){s.aim_enabled=true;s.aim_legit_mode=false;s.aim_strength_x=7.f;s.aim_strength_y=6.f;s.aim_lerp=.28f;}
-            profile_meta_t meta;meta.name=seed.name;meta.description=seed.description;
-            save_profile(seed.name,s,&meta);
-        }
-    }
-
-    inline std::vector<std::string> list_profiles( ) {
-        std::vector<std::string> names;
-        std::error_code ec;
-        for ( const auto& entry : std::filesystem::directory_iterator( configs_dir( ), ec ) ) {
-            if ( !entry.is_regular_file( ) )
-                continue;
-            if ( entry.path( ).extension( ) != ".cfg" )
-                continue;
-            names.push_back( entry.path( ).stem( ).string( ) );
-        }
-        std::sort( names.begin( ), names.end( ) );
-        return names;
-    }
 
 }

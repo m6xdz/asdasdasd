@@ -116,17 +116,16 @@ namespace ui {
         RegisterClassExW( &wc );
 
         m_hwnd = CreateWindowExW(
-            WS_EX_APPWINDOW | WS_EX_LAYERED | WS_EX_TOPMOST,
+            WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
             wc.lpszClassName, L"OSU!BAND", WS_POPUP,
             0, 0, MENU_W, MENU_H,
             nullptr, nullptr, instance, this );
 
         if ( !m_hwnd ) return false;
 
-        enable_acrylic( m_hwnd );
         SetLayeredWindowAttributes( m_hwnd, 0, 255, LWA_ALPHA );
 
-        ShowWindow( m_hwnd, SW_SHOWDEFAULT );
+        ShowWindow( m_hwnd, SW_HIDE );
         UpdateWindow( m_hwnd );
 
         if ( !init_d3d( ) ) return false;
@@ -205,14 +204,23 @@ namespace ui {
         return true;
     }
 
+    bool c_overlay::osu_foreground() const {
+        const HWND osu=input::target_window();
+        if(!osu||!IsWindow(osu)||IsIconic(osu))return false;
+        const HWND fg=GetForegroundWindow();
+        if(!fg)return false;
+        return GetAncestor(fg,GA_ROOT)==GetAncestor(osu,GA_ROOT);
+    }
+
     void c_overlay::handle_hotkeys( ) {
+        const bool in_osu=osu_foreground();
+        if(!in_osu){m_visible=false;m_f4_was_down=false;m_pause_key_down=false;return;}
         const bool pause=(GetAsyncKeyState(m_emergency_key)&0x8000)!=0;
         if(pause&&!m_pause_key_down)m_modules_paused=!m_modules_paused;
         m_pause_key_down=pause;
         if(m_waiting_menu){m_f4_was_down=false;return;}
         const bool menu_down = ( GetAsyncKeyState( m_menu_keybind ) & 0x8000 ) != 0;
-        if ( menu_down && !m_f4_was_down )
-            m_visible = !m_visible;
+        if ( menu_down && !m_f4_was_down ) m_visible = !m_visible;
         m_f4_was_down = menu_down;
     }
 
@@ -232,23 +240,12 @@ namespace ui {
 
         int target_x = 0, target_y = 0, target_w = 0, target_h = 0;
 
-        if ( !osu_hwnd || !IsWindow( osu_hwnd ) ) {
-            target_w = GetSystemMetrics( SM_CXSCREEN );
-            target_h = GetSystemMetrics( SM_CYSCREEN );
-        }
-        else {
-            RECT client{};
-            if ( playfield::get_playfield_rect( osu_hwnd, client ) ) {
-                target_x = client.left;
-                target_y = client.top;
-                target_w = client.right - client.left;
-                target_h = client.bottom - client.top;
-            }
-            else {
-                target_w = GetSystemMetrics( SM_CXSCREEN );
-                target_h = GetSystemMetrics( SM_CYSCREEN );
-            }
-        }
+        if ( !osu_hwnd || !IsWindow( osu_hwnd ) || IsIconic(osu_hwnd) ) return;
+        RECT client{};
+        if ( playfield::get_playfield_rect( osu_hwnd, client ) ) {
+            target_x = client.left; target_y = client.top;
+            target_w = client.right - client.left; target_h = client.bottom - client.top;
+        } else return;
 
         static RECT previous{};
         const RECT current{ target_x, target_y, target_x + target_w, target_y + target_h };
@@ -260,38 +257,15 @@ namespace ui {
 
     void c_overlay::apply_visibility( ) {
         if ( !m_hwnd ) return;
-
-        static bool prev_stream_proof = false;
-        const bool stream_proof_changed = prev_stream_proof != stream_proof;
-        prev_stream_proof = stream_proof;
-
-        bool should_show = m_visible || (m_lab_enabled && m_hud_enabled);
-
-        if ( should_show ) {
-            LONG ex = GetWindowLongW( m_hwnd, GWL_EXSTYLE );
-            if ( stream_proof ) {
-                ex |= WS_EX_TOOLWINDOW;
-                ex &= ~WS_EX_APPWINDOW;
-            } else {
-                ex |= WS_EX_APPWINDOW;
-                ex &= ~WS_EX_TOOLWINDOW;
-            }
-            if ( m_visible ) {
-                ex &= ~WS_EX_TRANSPARENT;
-            } else {
-                ex |= WS_EX_TRANSPARENT;
-            }
-            SetWindowLongW( m_hwnd, GWL_EXSTYLE, ex );
-            ShowWindow( m_hwnd, SW_SHOWNA );
-
-            if ( stream_proof_changed ) {
-                ShowWindow( m_hwnd, SW_HIDE );
-                ShowWindow( m_hwnd, SW_SHOWNA );
-            }
-        }
-        else {
-            ShowWindow( m_hwnd, SW_HIDE );
-        }
+        const bool in_osu=osu_foreground();
+        const bool should_show=in_osu&&(m_visible||(m_lab_enabled&&m_hud_enabled&&m_lab_access)||!m_toasts.empty());
+        if(!should_show){ShowWindow(m_hwnd,SW_HIDE);return;}
+        LONG ex=GetWindowLongW(m_hwnd,GWL_EXSTYLE);
+        ex|=WS_EX_TOOLWINDOW|WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_NOACTIVATE;
+        ex&=~WS_EX_APPWINDOW;
+        if(m_visible)ex&=~WS_EX_TRANSPARENT;else ex|=WS_EX_TRANSPARENT;
+        SetWindowLongW(m_hwnd,GWL_EXSTYLE,ex);
+        ShowWindow(m_hwnd,SW_SHOWNOACTIVATE);
     }
 
     LRESULT CALLBACK c_overlay::wnd_proc( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp ) {
@@ -308,6 +282,8 @@ namespace ui {
             PostQuitMessage( 0 );
             return 0;
         }
+        if ( msg == WM_MOUSEACTIVATE ) return MA_NOACTIVATE;
+        if ( msg == WM_ACTIVATE ) return 0;
         if ( msg == WM_SETCURSOR ) {
             if ( self && self->stream_proof && self->m_streamproof_hide_cursor ) {
                 SetCursor( nullptr );
@@ -364,8 +340,27 @@ namespace ui {
         if ( m_device ) { m_device->Release( ); m_device = nullptr; }
     }
 
+    void c_overlay::notify(std::string title,std::string detail,bool positive) {
+        if(m_toasts.size()>=5)m_toasts.erase(m_toasts.begin());
+        m_toasts.push_back({std::move(title),std::move(detail),GetTickCount64(),positive});
+    }
+
+    void c_overlay::draw_toasts() {
+        if(m_toasts.empty())return;
+        auto* d=ImGui::GetForegroundDrawList();const auto disp=ImGui::GetIO().DisplaySize;const uint64_t now=GetTickCount64();
+        float y=20.f;
+        for(size_t i=0;i<m_toasts.size();){auto& t=m_toasts[i];const float age=float(now-t.born)/1000.f;if(age>4.4f){m_toasts.erase(m_toasts.begin()+i);continue;}
+            float a=1.f;if(age<.28f)a=age/.28f;else if(age>3.8f)a=std::max(0.f,(4.4f-age)/.6f);
+            const float slide=band_ui::prefs.animations?(1.f-a)*32.f:0.f;const float w=360.f,h=t.detail.empty()?54.f:72.f;const ImVec2 p(disp.x-w-22.f+slide,y);
+            const ImU32 bg=IM_COL32(20,20,27,int(238*a));const ImU32 bd=t.positive?IM_COL32(255,111,142,int(160*a)):IM_COL32(255,160,120,int(175*a));
+            d->AddRectFilled(p,ImVec2(p.x+w,p.y+h),bg,12.f);d->AddRect(p,ImVec2(p.x+w,p.y+h),bd,12.f);d->AddRectFilled(p,ImVec2(p.x+3.f,p.y+h),bd,2.f);
+            d->AddText(ImVec2(p.x+18,p.y+13),IM_COL32(245,242,247,int(255*a)),t.title.c_str());
+            if(!t.detail.empty())d->AddText(ImVec2(p.x+18,p.y+38),IM_COL32(155,151,165,int(255*a)),t.detail.c_str());
+            y+=h+10.f;++i;}
+    }
+
     void c_overlay::render_frame( ) {
-        bool should_show = m_visible || (m_lab_enabled && m_hud_enabled);
+        bool should_show = osu_foreground() && (m_visible || (m_lab_enabled && m_hud_enabled&&m_lab_access) || !m_toasts.empty());
         if ( !should_show ) {
             // Do not copy the full beatmap snapshot or submit an empty frame
             // while the overlay is hidden.  The window is already hidden by
@@ -430,6 +425,7 @@ namespace ui {
             band_ui::text(hud,ImVec2(31,29),line.c_str(),13,band_ui::rose);
             band_ui::ui_scale=old_scale;
         }
+        draw_toasts();
         ImGui::Render( );
 
         if ( m_context && m_rtv ) {
@@ -675,7 +671,6 @@ namespace ui {
 
     void c_overlay::draw_menu(const osu::full_snapshot_t& snap) {
         auto s=capture_settings();
-        m_studio.style=s.replay_enabled?5:s.tap_enabled?4:s.relax_enabled?(s.relax_ur<35?3:2):s.aim_enabled&&!s.aim_legit_mode?1:0;
         m_studio.connected=snap.game.attached;m_studio.compatible=!snap.game.offset_mismatch;
         m_studio.map_loaded=snap.beatmap.loaded;m_studio.objects=static_cast<int>(snap.object_count);
         m_studio.time_ms=snap.game.cur_time;m_studio.paused=m_modules_paused;
@@ -699,17 +694,19 @@ namespace ui {
             }
         }
         if(a.refresh)refresh_profiles();
-        if(a.save&&!m_studio.cloud_busy){
-            // Replay paths are local-only; never publish someone’s filesystem paths.
+        if((a.save_private||a.submit_review)&&!m_studio.cloud_busy){
             auto portable=s;portable.replay_path_utf8.clear();
             std::ostringstream out;config::serialize_settings(out,m_studio.profile_name,portable);
-            const char* styles[]={"Legit","Rage","Relax Legit","Relax Rage","Tap","Replay"};
-            cloud_task(2,{{"name",m_studio.profile_name},{"description",m_studio.description},{"style",styles[m_studio.style]},
-                          {"cfg",out.str()},{"submit",m_studio.submit},{"channel","lab"}});
+            cloud_task(2,{{"name",m_studio.profile_name},{"description",m_studio.description},
+                          {"cfg",out.str()},{"submit",a.submit_review}});
         }
-        if(a.load&&!m_studio.cloud_busy&&m_studio.selected>=0&&m_studio.selected<static_cast<int>(m_studio.profiles.size())){
-            const auto& p=m_studio.profiles[m_studio.selected];cloud_task(3,{{"id",p.id},{"revision",p.revision}});
+        if(m_studio.selected>=0&&m_studio.selected<static_cast<int>(m_studio.profiles.size())){
+            const auto& p=m_studio.profiles[m_studio.selected];
+            if(a.install&&!m_studio.cloud_busy)cloud_task(4,{{"id",p.id},{"revision",p.revision}});
+            if(a.uninstall&&!m_studio.cloud_busy)cloud_task(5,{{"id",p.id}});
+            if(a.load&&!m_studio.cloud_busy)cloud_task(3,{{"id",p.id},{"revision",p.revision}});
         }
+        if(a.uninject){notify("OSU!BAND","Closing cleanly…");PostMessageW(m_hwnd,WM_CLOSE,0,0);return;}
         if(a.browse_replay){wchar_t file[32768]{};OPENFILENAMEW ofn{};ofn.lStructSize=sizeof(ofn);ofn.hwndOwner=m_hwnd;
             ofn.lpstrFilter=L"osu! replay (*.osr)\0*.osr\0\0";ofn.lpstrFile=file;ofn.nMaxFile=32768;
             ofn.Flags=OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR;

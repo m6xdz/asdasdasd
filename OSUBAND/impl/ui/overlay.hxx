@@ -30,6 +30,7 @@
 #include <mutex>
 #include <future>
 #include <optional>
+#include <unordered_map>
 #include <fstream>
 #include <sstream>
 #include <impl/cloud/avatar.hxx>
@@ -90,11 +91,17 @@ namespace ui {
         struct cloud_result {int kind;cloud::json data;std::string error;};
         std::future<cloud_result> m_cloud_job;
         cloud::avatar_cache m_avatars;
-        std::string m_avatar_url,m_active_stamp,m_pending_name;
+        std::string m_avatar_url,m_active_stamp,m_pending_name,m_review_stamp;
         std::optional<config::settings_t> m_pending_config,m_undo_config;
         uint64_t m_next_cloud_poll=0;
+        std::unordered_map<std::string,std::string> m_known_review_status;
+        struct toast_t { std::string title,detail; uint64_t born=0; bool positive=true; };
+        std::vector<toast_t> m_toasts;
+        void notify(std::string title,std::string detail={},bool positive=true);
+        void draw_toasts();
+        bool osu_foreground() const;
         HWND m_hwnd = nullptr;
-        bool m_visible = true;
+        bool m_visible = false;
         bool m_f4_was_down = false;
         snapshot_fn m_snapshot_fn;
         threads::c_cache* m_cache = nullptr;

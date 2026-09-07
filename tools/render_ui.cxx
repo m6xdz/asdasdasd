@@ -14,7 +14,7 @@ int main(int argc,char** argv){
     band_ui::model m;m.page=std::atoi(argv[2]);m.user="modeof19";m.plan="Beta";m.connected=true;m.map_loaded=true;m.lab_allowed=true;
     m.status="LAZER / BEATMAP READY";m.map="A new beginning [Insane]";m.objects=742;m.time_ms=32170;m.time=1.5f;
     const char* names[]={"Legit","Rage","Relax Legit","Relax Rage"};
-    for(int i=0;i<4;++i){config::profile_meta_t p;p.name=names[i];p.style=names[i];p.author="modeof19";p.official=true;p.status="published";p.description="Проверка отображения описания конфига";m.profiles.push_back(p);}m.selected=1;
+    for(int i=0;i<4;++i){config::profile_meta_t p;p.name=names[i];p.author="modeof19";p.official=true;p.status="published";p.description="Проверка отображения описания конфига";m.profiles.push_back(p);}m.selected=1;
     if(argc>4)band_ui::prefs.theme=std::atoi(argv[4]);
     band_loader::model loader;loader.connected=loader.authorized=loader.lab_access=loader.osu_running=true;loader.user="modeof19";loader.plan="Beta";loader.page=m.page==5?1:0;
     config::settings_t s;s.aim_enabled=true;s.lab_enabled=true;s.hud_enabled=true;

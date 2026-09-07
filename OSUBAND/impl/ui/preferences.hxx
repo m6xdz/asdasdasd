@@ -83,8 +83,8 @@ inline const char* tr(const char* s){
  {"K1 spread","Разброс K1"},{"K2 spread","Разброс K2"},{"Refresh","Обновить"},{"Apply","Применить"},{"Undo","Отменить"},
  {"Cloud configs","Облачные конфиги"},{"From modeof19","От modeof19"},{"From players","От игроков"},{"Mine","Мои"},{"On review","На проверке"},
  {"Published","Опубликован"},{"Rejected","Отклонён"},{"Private","Личный"},{"Save to cloud","Сохранить в облако"},{"Submit for review","Отправить на проверку"},
- {"Name","Название"},{"Description","Описание"},{"Style","Стиль"},{"Your settings","Твои настройки"},{"Loading...","Загрузка…"},
- {"No configs yet","Здесь пока нет конфигов"},{"Select a config","Выбери конфиг"},{"Language","Язык"},{"Theme","Тема"},{"Animations","Анимации"},{"Animation speed","Скорость анимаций"},
+ {"Name","Название"},{"Description","Описание"},{"Your settings","Твои настройки"},{"Publish your config","Опубликовать конфиг"},{"Loading...","Загрузка…"},
+ {"No configs yet","Здесь пока нет конфигов"},{"Select a config","Выбери конфиг"},{"Installed","Установлен"},{"Install","Установить"},{"Remove","Удалить у себя"},{"Save private","Сохранить личным"},{"Publish your config","Опубликовать конфиг"},{"Save private keeps it only in your account.","Личный конфиг виден только тебе."},{"Submit for review asks an admin to publish it","Проверка нужна, чтобы администратор опубликовал конфиг"},{"for everyone using the Beta build.","для всех пользователей Beta."},{"Cloud only · changes apply between maps","Только облако · применяется между картами"},{"UNINJECT","ВЫГРУЗИТЬ"},{"Language","Язык"},{"Theme","Тема"},{"Animations","Анимации"},{"Animation speed","Скорость анимаций"},
  {"Rose","Розовая"},{"Ocean","Синяя"},{"Light","Светлая"},{"Gameplay keys","Клавиши игры"},{"Exclude menu from capture","Скрывать меню при захвате"},
 
  {"Watermark","Водяной знак"},{"Menu key","Клавиша меню"},{"Press a key...","Нажми клавишу…"},{"Menu scale","Масштаб меню"},
