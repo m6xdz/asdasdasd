@@ -40,3 +40,13 @@ This environment does not contain MSVC + Windows SDK, so the final Windows
 OSUBAND.exe and OSUBAND.Loader.exe were not built or executed here. Build the
 solution as Release x64 on Windows/Visual Studio 2022 and do the final runtime
 smoke test there.
+
+
+V3 ADDITIONAL CHECKS
+- Site + cloud tests: 11/11 PASS.
+- Admin config delete requires an admin role and a 3-240 character reason.
+- Deleted configs disappear from list/fetch and are detached from active config selection.
+- Moderation metadata (deleted_at / deleted_by / delete_reason) remains in D1.
+- Dear ImGui preview renderer compiled and rendered Play / Config / Beta / Settings with modeof19 and a visible BETA label.
+- Core C++ roundtrip/session test: PASS.
+- Windows Release x64 was not built in this Linux environment; final MSVC/Windows SDK build still needs to be run on Windows.

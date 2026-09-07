@@ -175,11 +175,15 @@ inline actions draw(model& m,config::settings_t& s) {
     d->AddRectFilledMultiColor(P(1,1),P(width-1,94),panel,panel,base,base);
     ImGui::SetCursorScreenPos(P(0,0));ImGui::InvisibleButton("##drag",SV(ImVec2(880,83)));
     if(ImGui::IsItemActive()){m.offset.x+=io.MouseDelta.x;m.offset.y+=io.MouseDelta.y;}
-    brand(d,P(28,24),44);text(d,P(85,29),"OSU BAND",26);
+    brand(d,P(28,24),44);text(d,P(85,27),"OSU!BAND",25);
+    d->AddRectFilled(P(221,29),P(276,51),IM_COL32(255,111,142,34),S(11));
+    d->AddRect(P(221,29),P(276,51),IM_COL32(255,148,171,78),S(11));
+    text(d,P(233,33),"BETA",11,rose);
+    text(d,P(85,56),"CONTROL STUDIO",10,muted);
     if(m.avatar)d->AddImageRounded(m.avatar,P(819,20),P(865,66),ImVec2(0,0),ImVec2(1,1),IM_COL32_WHITE,23);
     text(d,P(876,24),m.user.substr(0,22).c_str(),15);text(d,P(876,47),m.plan.substr(0,23).c_str(),12,muted);
     if(button("##close","x",P(1060,23),ImVec2(32,32)))a.close=true;
-    const char* pages[]={"Play","Profiles","Beta","System"};
+    const char* pages[]={"Play","Config","Beta","Settings"};
     for(int i=0;i<4;++i){if(button(pages[i],pages[i],P(28+i*124,99),ImVec2(112,39),m.page==i))m.page=i;}
     if(button("##pause",m.paused?"Resume modules":"Pause modules  F8",P(843,99),ImVec2(249,39)))a.pause=true;
     d->AddLine(P(28,157),P(1092,157),border);
@@ -188,16 +192,20 @@ inline actions draw(model& m,config::settings_t& s) {
         const char* names[]={"Aim Assist","Relax","Tap Assist","Replay","Autobot"};
         const char* desc[]={"Cursor correction","Automatic key timing","Physical tap adjustment","Your .osr playback","Full path automation"};
         const bool on[]={s.aim_enabled,s.relax_enabled,s.tap_enabled,s.replay_enabled,s.autobot_enabled};
-        for(int i=0;i<5;++i){float y=266+i*67.f;
-            ImGui::SetCursorScreenPos(P(28,y));if(ImGui::InvisibleButton(names[i],SV(ImVec2(247,57))))m.module=i;
-            card(d,P(28,y),ImVec2(247,57),m.module==i?ImGui::GetColorU32(ImGuiCol_Header):panel,10);
-            char n[4];std::snprintf(n,sizeof(n),"%02d",i+1);text(d,P(44,y+18),n,14,m.module==i?rose:muted);
-            text(d,P(79,y+10),names[i],16);text(d,P(79,y+32),desc[i],12,muted);
-            if(on[i])d->AddCircleFilled(P(256,y+19),3,rose,16);
+        card(d,P(28,232),ImVec2(247,382));
+        text(d,P(48,250),"Modules",11,muted);
+        for(int i=0;i<5;++i){float y=278+i*63.f;
+            ImGui::SetCursorScreenPos(P(40,y));if(ImGui::InvisibleButton(names[i],SV(ImVec2(223,53))))m.module=i;
+            card(d,P(40,y),ImVec2(223,53),m.module==i?ImGui::GetColorU32(ImGuiCol_Header):base,10);
+            if(m.module==i)d->AddRectFilled(P(40,y+9),P(43,y+44),rose,S(2));
+            char n[4];std::snprintf(n,sizeof(n),"%02d",i+1);text(d,P(54,y+17),n,12,m.module==i?rose:muted);
+            text(d,P(86,y+8),names[i],15);text(d,P(86,y+29),desc[i],11,muted);
+            if(on[i])d->AddCircleFilled(P(247,y+16),S(3),rose,16);
         }
         card(d,P(297,181),ImVec2(795,433));
-        text(d,P(321,203),names[m.module],24);text(d,P(321,239),desc[m.module],14,muted);
-        d->AddLine(P(321,273),P(1067,273),border);
+        text(d,P(321,199),"Module settings",10,muted);
+        text(d,P(321,219),names[m.module],24);text(d,P(321,250),desc[m.module],13,muted);
+        d->AddLine(P(321,281),P(1067,281),border);
         bool* enabled[]={&s.aim_enabled,&s.relax_enabled,&s.tap_enabled,&s.replay_enabled,&s.autobot_enabled};
         if(toggle("##module-enable","Enable module",*enabled[m.module],P(870,209),195)){
             if(*enabled[m.module]) {
@@ -209,21 +217,21 @@ inline actions draw(model& m,config::settings_t& s) {
             }a.changed=true;
         }
         if(m.module==0){
-            a.changed|=slider("Horizontal strength","##sx",s.aim_strength_x,1,15,P(321,295),341,"%.1f");
-            a.changed|=slider("Vertical strength","##sy",s.aim_strength_y,1,15,P(700,295),367,"%.1f");
-            a.changed|=slider("Smoothing","##smooth",s.aim_lerp,.15f,.4f,P(321,367),341);
-            a.changed|=slider("Approach window","##window",s.aim_window,75,110,P(700,367),367,"%.0f ms");
-            a.changed|=slider("Distance falloff","##falloff",s.aim_decay_far,.01f,.5f,P(321,439),341);
-            a.changed|=slider("Freeze smoothing","##freeze",s.aim_freeze_lerp,.1f,.3f,P(700,439),367);
-            a.changed|=toggle("##tablet","Tablet mode",s.aim_tablet_mode,P(321,516),341);
-            a.changed|=toggle("##sliders","Ignore sliders",s.aim_ignore_sliders,P(700,516),367);
-            a.changed|=toggle("##clamp","Limit correction",s.aim_legit_mode,P(321,561),341);
-            if(s.aim_legit_mode){ImGui::SetCursorScreenPos(P(700,552));ImGui::SetNextItemWidth(S(367));a.changed|=ImGui::SliderFloat("##clampval",&s.aim_legit_clamp,1.05f,1.8f,"Clamp %.2f",ImGuiSliderFlags_AlwaysClamp);}
+            a.changed|=slider("Horizontal strength","##sx",s.aim_strength_x,1,15,P(321,303),341,"%.1f");
+            a.changed|=slider("Vertical strength","##sy",s.aim_strength_y,1,15,P(700,303),367,"%.1f");
+            a.changed|=slider("Smoothing","##smooth",s.aim_lerp,.15f,.4f,P(321,375),341);
+            a.changed|=slider("Approach window","##window",s.aim_window,75,110,P(700,375),367,"%.0f ms");
+            a.changed|=slider("Distance falloff","##falloff",s.aim_decay_far,.01f,.5f,P(321,447),341);
+            a.changed|=slider("Freeze smoothing","##freeze",s.aim_freeze_lerp,.1f,.3f,P(700,447),367);
+            a.changed|=toggle("##tablet","Tablet mode",s.aim_tablet_mode,P(321,520),341);
+            a.changed|=toggle("##sliders","Ignore sliders",s.aim_ignore_sliders,P(700,520),367);
+            a.changed|=toggle("##clamp","Limit correction",s.aim_legit_mode,P(321,563),341);
+            if(s.aim_legit_mode){ImGui::SetCursorScreenPos(P(700,554));ImGui::SetNextItemWidth(S(367));a.changed|=ImGui::SliderFloat("##clampval",&s.aim_legit_clamp,1.05f,1.8f,"Clamp %.2f",ImGuiSliderFlags_AlwaysClamp);}
         }else if(m.module==1){
-            a.changed|=slider("Timing variation / UR","##ur",s.relax_ur,0,200,P(321,295),341,"%.0f");
-            a.changed|=slider_i("Manual timing offset","##offset",s.relax_manual_offset_ms,-100,100,P(700,295),367,"%d ms");
+            a.changed|=slider("Timing variation / UR","##ur",s.relax_ur,0,200,P(321,303),341,"%.0f");
+            a.changed|=slider_i("Manual timing offset","##offset",s.relax_manual_offset_ms,-100,100,P(700,303),367,"%d ms");
             bool st=s.relax_tap_style==1;if(toggle("##single","Prefer single tap",st,P(321,377),341)){s.relax_tap_style=st?1:0;a.changed=true;}
-            a.changed|=slider_i("Single tap BPM ceiling","##bpm",s.relax_singletap_bpm_cap,100,300,P(700,367),367,"%d BPM");
+            a.changed|=slider_i("Single tap BPM ceiling","##bpm",s.relax_singletap_bpm_cap,100,300,P(700,375),367,"%d BPM");
             a.changed|=slider("K1 hold","##k1",s.relax_k1_hold_center,30,120,P(321,438),341,"%.0f ms");
             a.changed|=slider("K2 hold","##k2",s.relax_k2_hold_center,30,120,P(700,438),367,"%.0f ms");
             a.changed|=slider("K1 spread","##k1spread",s.relax_k1_hold_spread,2,30,P(321,510),341,"%.0f ms");
@@ -253,7 +261,7 @@ inline actions draw(model& m,config::settings_t& s) {
             a.changed|=slider("Spinner speed","##rpm",s.autobot_spinner_rpm,200,477,P(700,481),367,"%.0f RPM");
         }
     }else if(m.page==1){
-        text(d,P(28,180),"OSU!BAND configs",28);
+        text(d,P(28,180),"Config",28);
         if(button("##refresh","Refresh",P(952,180),ImVec2(140,37),false,!m.cloud_busy))a.refresh=true;
         card(d,P(28,235),ImVec2(636,364));
         ImGui::SetCursorScreenPos(P(40,247));ImGui::BeginChild("##cloudlist",SV(ImVec2(612,340)));

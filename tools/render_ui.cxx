@@ -11,7 +11,7 @@ int main(int argc,char** argv){
     io.IniFilename=nullptr;io.LogFilename=nullptr;
     if(argc>3)band_ui::load_fonts(argv[3]);else io.Fonts->AddFontDefault();
     unsigned char* tex=nullptr;int tw=0,th=0;io.Fonts->GetTexDataAsRGBA32(&tex,&tw,&th);io.Fonts->SetTexID(static_cast<ImTextureID>(1));
-    band_ui::model m;m.page=std::atoi(argv[2]);m.user="modeof19";m.plan="Beta";m.connected=true;m.map_loaded=true;
+    band_ui::model m;m.page=std::atoi(argv[2]);m.user="modeof19";m.plan="Beta";m.connected=true;m.map_loaded=true;m.lab_allowed=true;
     m.status="LAZER / BEATMAP READY";m.map="A new beginning [Insane]";m.objects=742;m.time_ms=32170;m.time=1.5f;
     const char* names[]={"Legit","Rage","Relax Legit","Relax Rage"};
     for(int i=0;i<4;++i){config::profile_meta_t p;p.name=names[i];p.style=names[i];p.author="modeof19";p.official=true;p.status="published";p.description="Проверка отображения описания конфига";m.profiles.push_back(p);}m.selected=1;
