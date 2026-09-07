@@ -95,7 +95,7 @@ namespace autobot {
             m_k1_actual = k1;
             m_k2_actual = k2;
 
-            if ( !m_synced || gt < m_last_game_time - 200 ) {
+            if ( !m_synced || gt < m_last_game_time - 200 || (m_synced && gt - m_last_game_time > 300) ) {
                 release_keys( );
                 m_click_queue.clear( );
                 m_slider_cache.clear( );
@@ -464,8 +464,12 @@ namespace autobot {
             WORD k1 = 0, k2 = 0;
             resolve_keys( game, k1, k2 );
 
+            constexpr int k_lookahead_ms = 900;
             for ( int i = m_scheduled_through_idx + 1; i < static_cast<int>( map.objects.size( ) ); ++i ) {
                 const auto& obj = map.objects[ static_cast<size_t>( i ) ];
+                if (obj.end_time < game.cur_time - 60) { m_scheduled_through_idx = i; continue; }
+                if (obj.start_time > game.cur_time + k_lookahead_ms) break;
+                if (m_click_queue.size() >= 96) break;
 
                 if ( is_spinner_object( obj ) ) {
                     m_use_k2_next = !m_use_k2_next;

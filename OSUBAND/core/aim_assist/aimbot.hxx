@@ -11,6 +11,7 @@
 #include <Windows.h>
 #include <cmath>
 #include <algorithm>
+#include <iterator>
 #include <cstdint>
 #include <climits>
 #include <atomic>
@@ -124,6 +125,34 @@ namespace aim_assist {
             snap->ez = ez_active;
             snap->cs = effective_cs;
             snap->targets.reserve( 1 );
+
+            // Slider safety: this aim implementation targets circle heads/future objects,
+            // it does not follow the slider ball.  While a slider/spinner is active, give
+            // the cursor completely back to the player instead of pulling toward the next
+            // object.  This also clears any residual correction so the cursor cannot jump
+            // when the hold ends.
+            auto active_it = std::upper_bound(map.objects.begin(), map.objects.end(), game.cur_time,
+                [](int time, const auto& obj){ return time < obj.start_time; });
+            bool slider_or_spinner_active = false;
+            int checked = 0;
+            while (active_it != map.objects.begin() && checked++ < 32) {
+                --active_it;
+                const auto& active = *active_it;
+                if (active.start_time < game.cur_time - 20000) break;
+                const bool slider = (active.type & static_cast<uint8_t>(osu::hit_object_type_t::slider)) != 0;
+                const bool spinner = (active.type & static_cast<uint8_t>(osu::hit_object_type_t::spinner)) != 0;
+                if ((slider || spinner) && game.cur_time >= active.start_time - 3 && game.cur_time <= active.end_time + 18) {
+                    slider_or_spinner_active = true;
+                    break;
+                }
+            }
+            if (slider_or_spinner_active) {
+                clear_motion_state();
+                m_in_play.store(false);
+                std::lock_guard<std::mutex> slock(m_snap_mutex);
+                m_shared_snap = snap;
+                return;
+            }
 
             auto first=std::upper_bound(map.objects.begin(),map.objects.end(),game.cur_time,
                 [](int time,const auto& obj){return time<obj.start_time;});

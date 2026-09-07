@@ -9,6 +9,7 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
+#include <iterator>
 #include <random>
 #include <mutex>
 #include <thread>
@@ -60,6 +61,7 @@ namespace tap_assist {
             m_estimated_rate = 1.0;
             m_rate_ref_real_time = 0.0;
             m_rate_ref_game_time = 0;
+            m_last_update_game_time = -1;
         }
 
         bool handle_key_event( int vk, bool is_down, int64_t press_qpc = 0 ) {
@@ -238,6 +240,17 @@ namespace tap_assist {
 
             {
                 std::lock_guard<std::recursive_mutex> lock( m_mutex );
+                if (m_last_update_game_time >= 0 && (game_time < m_last_update_game_time - 200 || game_time - m_last_update_game_time > 300)) {
+                    m_press_queue.clear();
+                    m_release_queue.clear();
+                    m_k1_is_corrected = m_k2_is_corrected = false;
+                    m_current_obj_index = static_cast<int64_t>(std::distance(map.objects.begin(),
+                        std::lower_bound(map.objects.begin(), map.objects.end(), game_time - 40,
+                            [](const osu::hit_object_t& obj, int t){ return obj.start_time < t; })));
+                }
+                m_last_update_game_time = game_time;
+                if (m_press_queue.size() > 64) m_press_queue.erase(m_press_queue.begin(), m_press_queue.end() - 64);
+                if (m_release_queue.size() > 64) m_release_queue.erase(m_release_queue.begin(), m_release_queue.end() - 64);
                 if ( m_rate_ref_real_time == 0.0 || game_time < m_rate_ref_game_time || game_time > m_rate_ref_game_time + 5000 ) {
                     m_rate_ref_real_time = real_now;
                     m_rate_ref_game_time = game_time;
@@ -377,7 +390,7 @@ namespace tap_assist {
                         input::release_vk( a.first );
                 }
 
-                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+                std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
             }
         }
 
@@ -468,6 +481,7 @@ namespace tap_assist {
         double m_estimated_rate = 1.0;
         double m_rate_ref_real_time = 0.0;
         int m_rate_ref_game_time = 0;
+        int m_last_update_game_time = -1;
     };
 
 }

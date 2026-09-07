@@ -9,7 +9,7 @@ int main(int argc,char** argv){
     if(argc<3)return 1;
     ImGui::CreateContext();auto& io=ImGui::GetIO();io.DisplaySize=ImVec2(1180,780);io.DeltaTime=1.f/60;
     io.IniFilename=nullptr;io.LogFilename=nullptr;
-    if(argc>3)band_ui::load_fonts(argv[3]);else io.Fonts->AddFontDefault();
+    if(argc>3 && argv[3] && argv[3][0]) band_ui::load_fonts(argv[3]); else io.Fonts->AddFontDefault();
     unsigned char* tex=nullptr;int tw=0,th=0;io.Fonts->GetTexDataAsRGBA32(&tex,&tw,&th);io.Fonts->SetTexID(static_cast<ImTextureID>(1));
     band_ui::model m;m.page=std::atoi(argv[2]);m.user="modeof19";m.plan="Beta";m.connected=true;m.map_loaded=true;m.lab_allowed=true;
     m.status="LAZER / BEATMAP READY";m.map="A new beginning [Insane]";m.objects=742;m.time_ms=32170;m.time=1.5f;
